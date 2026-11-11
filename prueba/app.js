@@ -906,11 +906,14 @@
 
   // Teclado en iPhone: la pantalla se ajusta al espacio visible para que la caja de escribir no quede tapada.
   if (window.visualViewport) {
+    // Solo se ajusta cuando el teclado está abierto; si no, la app ocupa toda la pantalla tal cual.
     var ajustarAlto = function () {
       var vv = window.visualViewport;
-      document.documentElement.style.setProperty('--alto', vv.height + 'px');
+      var teclado = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      document.documentElement.style.setProperty('--teclado', (teclado > 80 ? teclado : 0) + 'px');
       if (vv.offsetTop) window.scrollTo(0, 0);
     };
+    window.addEventListener('resize', ajustarAlto);
     window.visualViewport.addEventListener('resize', ajustarAlto);
     window.visualViewport.addEventListener('scroll', ajustarAlto);
     ajustarAlto();
