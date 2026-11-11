@@ -911,16 +911,6 @@
       var vv = window.visualViewport;
       var teclado = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
       document.documentElement.style.setProperty('--teclado', (teclado > 80 ? teclado : 0) + 'px');
-      // Como app en la pantalla de inicio, iPhone a veces reporta la pantalla más corta (deja una franja gris abajo):
-      // en ese caso se usa el alto real de la pantalla.
-      var alto = window.innerHeight;
-      var instalada = window.navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
-      if (instalada && screen.height) {
-        var horizontal = window.matchMedia && matchMedia('(orientation: landscape)').matches;
-        var real = horizontal ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
-        if (real > alto && real - alto < 120) alto = real;
-      }
-      document.documentElement.style.setProperty('--alto-app', alto + 'px');
       if (vv.offsetTop) window.scrollTo(0, 0);
     };
     window.addEventListener('resize', ajustarAlto);
