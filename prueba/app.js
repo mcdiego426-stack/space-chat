@@ -904,16 +904,24 @@
     }, { passive: true });
   }
 
-  // Teclado en iPhone: la pantalla se ajusta al espacio visible para que la caja de escribir no quede tapada.
+  // Teclado en iPhone: con el teclado abierto, la app se encoge al espacio visible arriba de él
+  // y sigue a la parte visible (sin pelearse con el iPhone, que es lo que hacía temblar la pantalla).
   if (window.visualViewport) {
-    // Solo se ajusta cuando el teclado está abierto; si no, la app ocupa toda la pantalla tal cual.
+    var tecladoAbierto = false;
     var ajustarAlto = function () {
-      var vv = window.visualViewport;
-      var teclado = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-      document.documentElement.style.setProperty('--teclado', (teclado > 80 ? teclado : 0) + 'px');
-      if (vv.offsetTop) window.scrollTo(0, 0);
+      var vv = window.visualViewport, raiz = document.documentElement;
+      var abierto = (window.innerHeight - vv.height) > 80;
+      var mm = $('mensajes');
+      var alFinal = mm ? (mm.scrollHeight - mm.scrollTop - mm.clientHeight < 120) : false;
+      if (abierto) {
+        raiz.style.setProperty('--vv-alto', Math.round(vv.height) + 'px');
+        raiz.style.setProperty('--vv-arriba', Math.round(vv.offsetTop) + 'px');
+      }
+      raiz.classList.toggle('con-teclado', abierto);
+      // Al abrir el teclado (o si ya estabas al final), el chat se baja al último mensaje.
+      if (mm && ((abierto && !tecladoAbierto) || alFinal)) mm.scrollTop = mm.scrollHeight;
+      tecladoAbierto = abierto;
     };
-    window.addEventListener('resize', ajustarAlto);
     window.visualViewport.addEventListener('resize', ajustarAlto);
     window.visualViewport.addEventListener('scroll', ajustarAlto);
     ajustarAlto();
