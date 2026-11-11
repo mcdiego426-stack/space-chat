@@ -1,0 +1,1 @@
+window.SPACE_CONFIG = { API_URL: '', GOOGLE_CLIENT_ID: '', VAPID_PUBLIC: '' };
