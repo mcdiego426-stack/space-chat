@@ -539,8 +539,6 @@
   function enlazarConv() {
     var inp = $('msg'), btn = $('btnEnviar');
     app.querySelectorAll('.volver').forEach(function (a) { a.onclick = volverALista; });
-    // Al abrir el teclado, que se vea lo último de la conversación.
-    inp.addEventListener('focus', function () { setTimeout(function () { var mm = $('mensajes'); if (mm) mm.scrollTop = mm.scrollHeight; }, 300); });
     function ajustar() { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; btn.disabled = inp.disabled || !inp.value.trim(); }
     inp.oninput = ajustar; ajustar();
     inp.onkeydown = function (ev) { if (ev.key === 'Enter' && !ev.shiftKey && esCompu()) { ev.preventDefault(); $('formMsg').requestSubmit ? $('formMsg').requestSubmit() : $('formMsg').onsubmit(ev); } };
@@ -904,27 +902,70 @@
     }, { passive: true });
   }
 
-  // Teclado en iPhone: con el teclado abierto, la app se encoge al espacio visible arriba de él
-  // y sigue a la parte visible (sin pelearse con el iPhone, que es lo que hacía temblar la pantalla).
+  // Teclado en iPhone.
+  // - Con el teclado abierto, la app ocupa solo el espacio visible arriba de él.
+  // - Si estabas viendo lo último del chat, se queda pegado al último mensaje mientras el teclado sube o baja.
+  // - Con el teclado abierto solo se desliza la lista de mensajes, no la página completa (eso hacía temblar la pantalla).
+  // - Al cerrar el teclado, la página regresa a su lugar (si no, abajo se asomaba una franja gris).
   if (window.visualViewport) {
-    var tecladoAbierto = false;
+    var vv = window.visualViewport, raiz = document.documentElement;
+    var tecladoAbierto = false, pegadoAlFinal = true, fijarHasta = 0, fijando = false;
+    var distanciaAlFinal = function (mm) { return mm.scrollHeight - mm.scrollTop - mm.clientHeight; };
+    var alFinal = function () { var mm = $('mensajes'); if (mm) mm.scrollTop = mm.scrollHeight; };
+    // Durante la animación del teclado, mantener el chat en el último mensaje cuadro por cuadro.
+    var fijarAlFinal = function (ms) {
+      fijarHasta = Date.now() + (ms || 700);
+      if (fijando) return; fijando = true;
+      (function paso() {
+        if (pegadoAlFinal) alFinal();
+        if (Date.now() < fijarHasta) requestAnimationFrame(paso); else fijando = false;
+      })();
+    };
+    // Saber si la persona está viendo lo último o se subió a leer mensajes viejos (solo cuenta cuando ella desliza).
+    document.addEventListener('scroll', function (e) {
+      if (e.target && e.target.id === 'mensajes' && Date.now() > fijarHasta) pegadoAlFinal = distanciaAlFinal(e.target) < 60;
+    }, true);
+    document.addEventListener('focusin', function (e) {
+      if (e.target && e.target.id === 'msg') { pegadoAlFinal = true; fijarAlFinal(900); }
+    });
+    document.addEventListener('focusout', function () {
+      setTimeout(function () { if (!tecladoAbierto) window.scrollTo(0, 0); }, 120);
+    });
     var ajustarAlto = function () {
-      var vv = window.visualViewport, raiz = document.documentElement;
       var abierto = (window.innerHeight - vv.height) > 80;
-      var mm = $('mensajes');
-      var alFinal = mm ? (mm.scrollHeight - mm.scrollTop - mm.clientHeight < 120) : false;
       if (abierto) {
         raiz.style.setProperty('--vv-alto', Math.round(vv.height) + 'px');
         raiz.style.setProperty('--vv-arriba', Math.round(vv.offsetTop) + 'px');
       }
-      raiz.classList.toggle('con-teclado', abierto);
-      // Al abrir el teclado (o si ya estabas al final), el chat se baja al último mensaje.
-      if (mm && ((abierto && !tecladoAbierto) || alFinal)) mm.scrollTop = mm.scrollHeight;
-      tecladoAbierto = abierto;
+      if (abierto !== tecladoAbierto) {
+        raiz.classList.toggle('con-teclado', abierto);
+        tecladoAbierto = abierto;
+        if (!abierto) window.scrollTo(0, 0);
+        fijarAlFinal(700);
+      } else if (pegadoAlFinal) alFinal();
     };
-    window.visualViewport.addEventListener('resize', ajustarAlto);
-    window.visualViewport.addEventListener('scroll', ajustarAlto);
+    vv.addEventListener('resize', ajustarAlto);
+    vv.addEventListener('scroll', ajustarAlto);
     ajustarAlto();
+
+    // Con el teclado abierto: solo se mueve lo que tiene contenido para deslizar (la lista de mensajes).
+    var yToque = 0;
+    document.addEventListener('touchstart', function (e) { yToque = e.touches[0].clientY; }, { passive: true });
+    document.addEventListener('touchmove', function (e) {
+      if (!tecladoAbierto || e.touches.length > 1) return;
+      var dy = e.touches[0].clientY - yToque, el = e.target;
+      if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return; // mover el cursor al escribir
+      while (el && el !== document.body) {
+        var st = el.nodeType === 1 ? getComputedStyle(el).overflowY : '';
+        if ((st === 'auto' || st === 'scroll') && el.scrollHeight > el.clientHeight + 1) {
+          var arriba = el.scrollTop <= 0, abajo = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+          if ((arriba && dy > 0) || (abajo && dy < 0)) e.preventDefault();
+          return;
+        }
+        el = el.parentNode;
+      }
+      e.preventDefault();
+    }, { passive: false });
   }
   // En iPhone, esto hace que los botones se vean "presionados" al tocarlos.
   document.addEventListener('touchstart', function () {}, { passive: true });
