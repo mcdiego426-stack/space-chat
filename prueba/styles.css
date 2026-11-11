@@ -18,6 +18,7 @@
   --rapido: .16s cubic-bezier(.2, .8, .2, 1);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { background: #fff; }
 html, body { margin: 0; height: 100%; overscroll-behavior: none; touch-action: manipulation; }
 /* La app no "rebota" como página web: solo se mueven las listas y los chats. */
 body { position: fixed; inset: 0; overflow: hidden; }
@@ -32,7 +33,7 @@ a { color: var(--verde); }
 h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 
 /* ---------- Estructura ---------- */
-#app { position: fixed; top: 0; left: 0; right: 0; bottom: var(--teclado, 0px); display: flex; flex-direction: column; overflow: hidden; }
+#app { position: fixed; top: 0; left: 0; right: 0; height: calc(var(--alto-app, 100%) - var(--teclado, 0px)); display: flex; flex-direction: column; overflow: hidden; }
 .barra { background: var(--verde); color: #fff; padding: calc(env(safe-area-inset-top) + 14px) 16px 12px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
 .barra-fila { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .barra-der { display: flex; align-items: center; gap: 4px; }
@@ -159,7 +160,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .enviar:disabled { background: #B5CFC4; cursor: default; }
 
 /* ---------- Hoja que sube desde abajo (etapas, ficha, confirmaciones) ---------- */
-.hoja-fondo { position: fixed; top: 0; left: 0; right: 0; bottom: var(--teclado, 0px); background: rgba(10, 20, 15, 0); z-index: 40; display: flex; align-items: flex-end; justify-content: center; transition: background .2s ease; }
+.hoja-fondo { position: fixed; top: 0; left: 0; right: 0; height: calc(var(--alto-app, 100%) - var(--teclado, 0px)); background: rgba(10, 20, 15, 0); z-index: 40; display: flex; align-items: flex-end; justify-content: center; transition: background .2s ease; }
 .hoja-fondo.abierta { background: rgba(10, 20, 15, .38); }
 .hoja { background: #fff; width: 100%; max-width: 520px; max-height: 88%; overflow-y: auto; border-radius: 18px 18px 0 0; padding: 8px 18px calc(env(safe-area-inset-bottom) + 18px); transform: translateY(100%); transition: transform .22s cubic-bezier(.2, .8, .2, 1); display: flex; flex-direction: column; gap: 12px; }
 .hoja-fondo.abierta .hoja { transform: none; }
