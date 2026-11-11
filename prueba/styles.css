@@ -18,6 +18,8 @@
   --rapido: .16s cubic-bezier(.2, .8, .2, 1);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* Si el iPhone deja algún hueco abajo, que sea blanco como las pestañas (no gris). */
+html { background: #fff; }
 html, body { margin: 0; height: 100%; overscroll-behavior: none; touch-action: manipulation; }
 /* La app no "rebota" como página web: solo se mueven las listas y los chats. */
 body { overflow: hidden; }
