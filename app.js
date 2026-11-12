@@ -1505,6 +1505,7 @@
     // Diagnóstico temporal: al abrir el teclado en un chat, guarda en la Bitácora dónde quedó cada pieza.
     var diagN = 0;
     var diag = function (momento) {
+      return; // diagnóstico apagado (ya quedó lo del teclado)
       if (diagN >= 6 || DEMO || !E.sesion) return; diagN++;
       try {
         var r = function (sel) { var x = document.querySelector(sel); if (!x) return null; var b = x.getBoundingClientRect(); return Math.round(b.top) + '/' + Math.round(b.height); };
