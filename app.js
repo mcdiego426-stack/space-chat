@@ -336,11 +336,29 @@
     return vistaChats('');
   }
 
+  // ---------- Marco (prospectador): perfil del doctor que llena Marco
+  var TEMP = { caliente: '🔥 Caliente', tibio: '🌤️ Tibio', frio: '❄️ Frío' };
+  function perfilMarco(c) { try { return c && c.perfil ? JSON.parse(c.perfil) : null; } catch (e) { return null; } }
+  function tempIcono(c) { var p = perfilMarco(c); return p && TEMP[p.temperatura] ? ' ' + TEMP[p.temperatura].split(' ')[0] : ''; }
+  function marcoResumen(c) {
+    var p = perfilMarco(c); if (!p || !(p.resumen || p.temperatura)) return '';
+    var datos = [p.especialidad, p.uso, p.metros, p.presupuesto, p.formaPago, p.cuando].filter(Boolean).join(' · ');
+    return '<div class="ventana marco-resumen" style="display:block;line-height:1.35"><b>' + (TEMP[p.temperatura] || 'Marco') + '</b>' + (p.pausa ? ' · lo atiendes tú' : '') +
+      (p.resumen ? '<br>' + esc(p.resumen) : '') + (datos ? '<br><span style="opacity:.75">' + esc(datos) + '</span>' : '') + (p.cita ? '<br>📅 ' + esc(p.cita) : '') + '</div>';
+  }
+  function fichaMarco(c) {
+    var p = perfilMarco(c); if (!p) return '';
+    var filas = [['Interés', TEMP[p.temperatura]], ['Uso', p.uso], ['Metros', p.metros], ['Presupuesto', p.presupuesto], ['Pago', p.formaPago], ['Para cuándo', p.cuando], ['Cita', p.cita]].filter(function (d) { return d[1]; });
+    return '<span class="rotulo">Lo que sabe Marco</span><div class="ficha-datos">' + filas.map(function (d) { return '<div class="fila-dato"><span>' + d[0] + '</span><b>' + esc(d[1]) + '</b></div>'; }).join('') + '</div>' +
+      (p.resumen ? '<p class="nota">' + esc(p.resumen) + '</p>' : '') +
+      (p.pausa ? '<button class="boton-sec ancho" data-marco-retomar>Devolver chat a Marco</button>' : '');
+  }
+
   // ================================================================== CHATS
   function filaChat(c, sel) {
     var nueva = Number(c.sinLeer) > 0;
     return '<a class="fila' + (sel ? ' sel' : '') + (nueva ? ' nueva' : '') + '" href="#chat/' + esc(c.telefono) + '" data-tel="' + esc(c.telefono) + '">' + avatar(c) +
-      '<div class="fila-info"><div class="fila-arriba"><span class="nombre">' + esc(nombreDe(c)) + '</span><span class="hora">' + esc(horaCorta(c.ultimaHora)) + '</span></div>' +
+      '<div class="fila-info"><div class="fila-arriba"><span class="nombre">' + esc(nombreDe(c)) + tempIcono(c) + '</span><span class="hora">' + esc(horaCorta(c.ultimaHora)) + '</span></div>' +
       '<div class="fila-abajo"><span class="ultimo">' + esc(c.ultimoMsg) + '</span>' + (nueva ? '<span class="contador">' + Number(c.sinLeer) + '</span>' : '') + '</div>' +
       '<span class="etapa t-' + esc(c.etapa) + '">' + esc(c.etapa) + (c.especialidad ? ' · ' + esc(c.especialidad) : '') + '</span></div></a>';
   }
@@ -614,6 +632,7 @@
       ? '<div class="ventana cerrada">Pidió BAJA: no se le puede volver a escribir.</div>'
       : resto ? '<div class="ventana">' + ICON.reloj + '<span><b>Puedes escribirle libre</b> por ' + resto + '</span></div>'
         : (cv ? '<div class="ventana cerrada">Pasaron más de 24 h desde su último mensaje: solo se puede mandar plantilla.</div>' : '');
+    aviso += marcoResumen(c);
     var cuerpoMsgs = cv ? (cv.mensajes.length ? burbujas(cv.mensajes, c) : '<p class="vacio">Sin mensajes todavía.</p>')
       : '<div class="cargando-msgs"><span></span><span></span><span></span></div>';
 
@@ -1039,6 +1058,7 @@
     return '<div class="ficha-cab">' + avatar(c, 'grande') + '<div class="ficha-nombre">' + esc(nombreDe(c)) + '</div></div>' +
       '<div class="ficha-datos">' + datos.map(function (d) { return '<div class="fila-dato"><span>' + d[0] + '</span><b>' + esc(d[1]) + '</b></div>'; }).join('') + '</div>' +
       '<a class="boton-sec ancho" href="https://wa.me/' + esc(c.telefono) + '" target="_blank" rel="noopener">Abrir en WhatsApp</a>' +
+      fichaMarco(c) +
       '<label class="rotulo" for="notas">Notas</label><textarea id="notas" class="notas" placeholder="Ej. busca consultorio con vista, piso alto">' + esc(c.notas) + '</textarea>' +
       '<span class="nota" id="estadoNotas"></span>' +
       '<button class="boton-sec ancho" data-cambiar-etapa>Cambiar etapa</button>' +
@@ -1057,6 +1077,12 @@
     raiz.querySelector('[data-cambiar-etapa]').onclick = function () { elegirEtapa(c); };
     var b = raiz.querySelector('[data-baja]');
     if (b) b.onclick = function () { pedirBaja(c); };
+    var mr = raiz.querySelector('[data-marco-retomar]');
+    if (mr) mr.onclick = function () {
+      mr.disabled = true;
+      api('marcoRetomar', c.telefono).then(function (nc) { c.perfil = nc.perfil; mr.remove(); toast('Marco vuelve a atender este chat'); pintarConv(false); })
+        .catch(function (e) { toast(e.message, 'error'); mr.disabled = false; });
+    };
   }
   function pintarFicha(c) {
     var f = $('panelFicha'); if (!f || !c) return;
