@@ -1509,15 +1509,21 @@
       try {
         var r = function (sel) { var x = document.querySelector(sel); if (!x) return null; var b = x.getBoundingClientRect(); return Math.round(b.top) + '/' + Math.round(b.height); };
         var cv = app.querySelector('.conv'), mm = $('mensajes');
-        var d = { m: momento, v: 'v8', sy: Math.round(window.scrollY), vvT: Math.round(vv.offsetTop), vvH: Math.round(vv.height), iH: window.innerHeight, sH: screen.height,
+        var d = { m: momento, v: 'v10', base: Math.round(altoBase), sy: Math.round(window.scrollY), vvT: Math.round(vv.offsetTop), vvH: Math.round(vv.height), iH: window.innerHeight, sH: screen.height,
           appT: app.scrollTop, convT: cv ? cv.scrollTop : null, docT: document.documentElement.scrollTop, bodyT: document.body.scrollTop,
           app: r('#app'), arriba: r('.conv-arriba'), barra: r('.conv-barra'), msgs: r('#mensajes'), redactar: r('.redactar'),
           cls: document.documentElement.className, est: !!window.navigator.standalone, ua: navigator.userAgent.replace(/^.*(iPhone OS [0-9_]+).*$/, '$1') };
         api('diag', JSON.stringify(d)).catch(function () {});
       } catch (e) {}
     };
+    // En iOS reciente, innerHeight también se encoge con el teclado y la resta ya no sirve:
+    // se guarda la altura más grande que se ha visto y, si hay una caja de escribir activa y la vista se encogió, es el teclado.
+    var altoBase = 0;
+    window.addEventListener('orientationchange', function () { altoBase = 0; });
     var ajustarAlto = function () {
-      var abierto = (window.innerHeight - vv.height) > 80;
+      altoBase = Math.max(altoBase, vv.height, tecladoAbierto ? 0 : window.innerHeight);
+      var ae = document.activeElement, foco = !!ae && /^(TEXTAREA|INPUT)$/.test(ae.tagName);
+      var abierto = (window.innerHeight - vv.height) > 80 || (foco && altoBase - vv.height > 120);
       if (abierto) {
         raiz.style.setProperty('--vv-alto', Math.round(vv.height) + 'px');
         raiz.style.setProperty('--vv-arriba', Math.round(vv.offsetTop) + 'px');
