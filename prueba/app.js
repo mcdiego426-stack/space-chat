@@ -514,17 +514,18 @@
 
     if (inicial || !$('formMsg')) {
       panel.innerHTML =
-        '<header class="conv-barra"><a class="icono-btn volver" href="#chats" aria-label="Volver a chats">' + ICON.atras + '</a>' +
+        '<div class="conv-arriba"><header class="conv-barra"><a class="icono-btn volver" href="#chats" aria-label="Volver a chats">' + ICON.atras + '</a>' +
         '<button class="conv-quien" id="verFicha" aria-label="Ver ficha">' + avatar(c, 'chico') +
         '<span class="conv-textos"><span class="conv-nombre" id="convNombre">' + esc(nombreDe(c)) + '</span><span class="conv-sub" id="convSub">' + esc(sub) + '</span></span></button>' +
         '<button class="icono-btn" id="verFicha2" aria-label="Ver ficha">' + ICON.info + '</button></header>' +
         '<div class="conv-cab-escritorio solo-escritorio"><div class="conv-cab-quien">' + avatar(c, 'chico') + '<div><div class="cab-nombre" id="cabNombre">' + esc(nombreDe(c)) + '</div><div class="nota" id="cabSub">' + esc(sub) + '</div></div></div><div class="cab-der"><button class="badge e-' + esc(c.etapa) + ' badge-btn" id="cabEtapa" title="Cambiar etapa">' + esc(c.etapa) + ' ▾</button><button class="icono-btn oscuro ficha-btn" id="verFicha3" aria-label="Ver ficha" title="Ver ficha">' + ICON.info + '</button></div></div>' +
-        '<div id="avisoVentana">' + aviso + '</div>' +
+        '<div id="avisoVentana">' + aviso + '</div></div>' +
         '<div class="mensajes" id="mensajes">' + cuerpoMsgs + '</div>' +
         '<form class="redactar" id="formMsg" autocomplete="off"><div class="escribir">' +
         '<label class="oculto" for="msg">Escribe un mensaje</label><textarea id="msg" rows="1" placeholder="' + (puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla')) + '"' + (puede ? '' : ' disabled') + '></textarea>' +
         '<button class="enviar" id="btnEnviar" aria-label="Enviar"' + (puede ? '' : ' disabled') + '>' + ICON.mandar + '</button></div></form>';
       enlazarConv();
+      medirConv(panel);
       var mm = $('mensajes'); mm.scrollTop = mm.scrollHeight;
     } else {
       $('avisoVentana').innerHTML = aviso;
@@ -539,6 +540,20 @@
     }
     enlazarReintentos();
     pintarFicha(c);
+  }
+
+  // En el celular, el encabezado y la barra de escribir flotan sobre los mensajes (como WhatsApp):
+  // se mide cuánto ocupan para que el primer y el último mensaje no queden tapados.
+  function medirConv(panel) {
+    if (!window.ResizeObserver) return;
+    var arriba = panel.querySelector('.conv-arriba'), abajo = panel.querySelector('.redactar'), mm = $('mensajes');
+    var ro = new ResizeObserver(function () {
+      var alFinal = mm.scrollHeight - mm.scrollTop - mm.clientHeight < 60;
+      panel.style.setProperty('--arriba', arriba.offsetHeight + 'px');
+      panel.style.setProperty('--abajo', abajo.offsetHeight + 'px');
+      if (alFinal) mm.scrollTop = mm.scrollHeight;
+    });
+    ro.observe(arriba); ro.observe(abajo);
   }
 
   function volverALista(ev) {
