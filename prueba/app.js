@@ -9,6 +9,7 @@
   var app = document.getElementById('app');
   var ETAPAS = ['Nuevo', 'Contactado', 'Interesado', 'Cita', 'Apartado', 'Vendido', 'BAJA'];
   var E = {
+    medios: {},
     sesion: null, chats: [], contactos: [], convs: {}, filtroChat: 'Todos', filtroEtapa: '', buscaChat: '', buscaContacto: '',
     lote: 20, previa: null, semaforo: null, telSel: '', vista: '', cargandoConv: false, listos: {}, mostrarContactos: 80
   };
@@ -59,6 +60,8 @@
   function sinAcentos(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function firma(x) { try { return JSON.stringify(x); } catch (e) { return String(Math.random()); } }
   var ICON = {
+    play: '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13a1 1 0 001.5.86l11-6.5a1 1 0 000-1.72l-11-6.5A1 1 0 008 5.5z"/></svg>',
+    basura: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
     mas: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
     camara: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 015.5 6h1.8l1.5-2h6.4l1.5 2h1.8A2.5 2.5 0 0121 8.5v9a2.5 2.5 0 01-2.5 2.5h-13A2.5 2.5 0 013 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
     micro: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0013 0M12 18v3"/></svg>',
@@ -99,7 +102,7 @@
       try {
         var tels = Object.keys(E.convs).sort(function (a, b) { return (E.convs[b]._t || 0) - (E.convs[a]._t || 0); }).slice(0, 40), convs = {};
         tels.forEach(function (t) { convs[t] = E.convs[t]; });
-        localStorage.setItem(CLAVE_CACHE, JSON.stringify({ correo: E.sesion && E.sesion.correo, chats: E.chats, contactos: E.contactos, convs: convs }));
+        localStorage.setItem(CLAVE_CACHE, JSON.stringify({ correo: E.sesion && E.sesion.correo, chats: E.chats, contactos: E.contactos, convs: convs }, function (k, v) { return k === 'local' || k === '_reenviar' ? undefined : v; }));
       } catch (e) {}
     }, 400);
   }
@@ -153,6 +156,7 @@
         { direccion: 'entrada', tipo: 'text', texto: '¿Qué metros tiene el más chico?', estado: 'recibido', hora: hace(47) }
       ]
     };
+    var archivosDemo = { n: 0 };
     function buscar(tel) { for (var i = 0; i < cs.length; i++) if (cs[i].telefono === tel) return cs[i]; return null; }
     function chats() { return cs.filter(function (c) { return c.ultimaHora; }).sort(function (a, b) { return new Date(b.ultimaHora) - new Date(a.ultimaHora); }); }
     function conv(tel, sinMarcar) {
@@ -186,6 +190,26 @@
       mandarLote: function () { throw new Error('Modo demo: no manda mensajes'); },
       semaforo: function () { return { calidadMeta: 'Sin avisos', estadoPlantilla: 'En revisión', tope: 250, lotes: [{ lote: 1, fecha: hace(60 * 52), enviados: 20, entregados: 19, si: 4, baja: 1, fallidos: 1, semaforo: 'Verde' }] }; },
       guardarSuscripcion: function () { return true; },
+      enviarArchivo: function (tel, d) {
+        var c = buscar(tel);
+        if (!(c.ventanaHasta && new Date(c.ventanaHasta) > new Date())) throw new Error('Pasaron más de 24 h: solo se puede mandar plantilla');
+        var id = 'demo-' + (++archivosDemo.n), h = new Date().toISOString(), tipo = d.tipo === 'imagen' ? 'image' : d.tipo === 'audio' ? 'audio' : 'document';
+        archivosDemo[id] = { mime: d.mime, nombre: d.nombre, base64: d.base64 };
+        (msgs[tel] = msgs[tel] || []).push({ direccion: 'salida', tipo: tipo, texto: d.pie || '', estado: 'enviado', hora: h, archivo: { id: id, mime: d.mime, nombre: d.nombre } });
+        c.ultimoMsg = 'Tú: ' + (tipo === 'image' ? '📷 Foto' : tipo === 'audio' ? '🎤 Audio' : '📄 ' + d.nombre); c.ultimaHora = h;
+        return { estado: 'enviado', hora: h, archivo: { id: id, mime: d.mime, nombre: d.nombre } };
+      },
+      enviarUbicacion: function (tel, lat, lng, nombre) {
+        var c = buscar(tel), h = new Date().toISOString();
+        (msgs[tel] = msgs[tel] || []).push({ direccion: 'salida', tipo: 'location', texto: nombre || '', estado: 'enviado', hora: h, archivo: { lat: lat, lng: lng, nombre: nombre || '' } });
+        c.ultimoMsg = 'Tú: 📍 Ubicación'; c.ultimaHora = h; return { estado: 'enviado', hora: h };
+      },
+      enviarContacto: function (tel, nombre, t) {
+        var c = buscar(tel), h = new Date().toISOString();
+        (msgs[tel] = msgs[tel] || []).push({ direccion: 'salida', tipo: 'contacts', texto: '', estado: 'enviado', hora: h, archivo: { nombre: nombre, tel: t } });
+        c.ultimoMsg = 'Tú: 👤 ' + nombre; c.ultimaHora = h; return { estado: 'enviado', hora: h };
+      },
+      archivo: function (id) { var a = archivosDemo[id]; if (!a) throw new Error('No existe'); return a; },
       // Simula que un doctor escribe (solo demo): llamar desde la consola con Demo.llega()
       _llega: function () { var c = cs[1], h = new Date().toISOString(); (msgs[c.telefono] = msgs[c.telefono] || []).push({ direccion: 'entrada', tipo: 'text', texto: '¿Tienen estacionamiento?', estado: 'recibido', hora: h }); c.ultimoMsg = '¿Tienen estacionamiento?'; c.ultimaHora = h; c.sinLeer = (c.sinLeer || 0) + 1; c.ventanaHasta = new Date(Date.now() + 24 * 3600e3).toISOString(); }
     };
@@ -465,6 +489,78 @@
     return null;
   }
 
+  // ---------- Fotos, audios, documentos, ubicación y contactos dentro del chat
+  var TIPOS_MEDIO = { image: 'foto', sticker: 'foto', audio: 'audio', document: 'doc', video: 'doc', location: 'ubicacion', contacts: 'contacto' };
+  function esMedio(m) { return !!TIPOS_MEDIO[m.tipo]; }
+  function medioHtml(m) {
+    var t = TIPOS_MEDIO[m.tipo]; if (!t) return '';
+    var a = m.archivo || {};
+    if (a.error) return '<div class="medio doc"><span class="medio-ic">' + ICON.documento + '</span><span class="medio-nombre">No se pudo bajar el archivo</span></div>';
+    if (t === 'foto') {
+      var src = m.local || (a.id && E.medios[a.id] && E.medios[a.id].url) || '';
+      return '<button type="button" class="medio foto" data-arch="' + esc(a.id || '') + '">' + (src ? '<img src="' + src + '" alt="Foto">' : '<span class="medio-cargando"></span>') + '</button>';
+    }
+    if (t === 'audio') {
+      var au = m.local || (a.id && E.medios[a.id] && E.medios[a.id].url) || '';
+      return au ? '<audio class="medio-audio" controls src="' + au + '"></audio>'
+        : '<button type="button" class="medio audio" data-arch="' + esc(a.id || '') + '" data-abrir="audio"><span class="medio-play">' + ICON.play + '</span><span class="medio-nombre">Audio · toca para escuchar</span></button>';
+    }
+    if (t === 'doc') {
+      return '<button type="button" class="medio doc" data-arch="' + esc(a.id || '') + '" data-abrir="doc"><span class="medio-ic">' + ICON.documento + '</span><span class="medio-nombre">' + esc(a.nombre || (m.tipo === 'video' ? 'Video' : 'Documento')) + '</span></button>';
+    }
+    if (t === 'ubicacion') {
+      var q = encodeURIComponent(a.lat + ',' + a.lng);
+      return '<a class="medio ubic" href="https://www.google.com/maps/search/?api=1&query=' + q + '" target="_blank" rel="noopener"><span class="medio-ic">' + ICON.ubicacion + '</span><span class="medio-textos"><b>' + esc(a.nombre || 'Ubicación') + '</b><span>Abrir en Mapas</span></span></a>';
+    }
+    if (t === 'contacto') {
+      return '<a class="medio contacto" href="tel:' + esc(a.tel || '') + '"><span class="medio-ic">' + ICON.contacto + '</span><span class="medio-textos"><b>' + esc(a.nombre || 'Contacto') + '</b><span>' + esc(a.tel || '') + '</span></span></a>';
+    }
+    return '';
+  }
+  // Los archivos se piden al cerebro una sola vez y se guardan mientras la app está abierta.
+  function obtenerMedio(id) {
+    if (!E.medios[id]) {
+      E.medios[id] = { promesa: api('archivo', id).then(function (r) {
+        var bin = atob(r.base64), arr = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        var url = URL.createObjectURL(new Blob([arr], { type: r.mime }));
+        E.medios[id].url = url; E.medios[id].nombre = r.nombre; E.medios[id].mime = r.mime;
+        return E.medios[id];
+      }).catch(function (e) { delete E.medios[id]; throw e; }) };
+    }
+    return E.medios[id].promesa;
+  }
+  function cargarMedios() {
+    app.querySelectorAll('.medio.foto[data-arch]').forEach(function (b) {
+      var id = b.getAttribute('data-arch');
+      if (!id || b.querySelector('img')) return;
+      obtenerMedio(id).then(function (r) {
+        var mm = $('mensajes'), alFinal = mm && mm.scrollHeight - mm.scrollTop - mm.clientHeight < 80;
+        b.innerHTML = '<img src="' + r.url + '" alt="Foto">';
+        b.querySelector('img').onload = function () { if (alFinal && mm) mm.scrollTop = mm.scrollHeight; };
+      }).catch(function () { b.innerHTML = '<span class="medio-nombre">No se pudo cargar la foto</span>'; });
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.medio[data-arch]');
+    if (!b) return;
+    var id = b.getAttribute('data-arch'), que = b.getAttribute('data-abrir');
+    if (b.classList.contains('foto')) {
+      var img = b.querySelector('img'); if (!img) return;
+      var v = document.createElement('div'); v.className = 'visor'; v.innerHTML = '<img src="' + img.src + '" alt="Foto"><button class="visor-cerrar" aria-label="Cerrar">✕</button>';
+      v.onclick = function () { v.remove(); }; document.body.appendChild(v); return;
+    }
+    if (!id) return;
+    var nom = b.querySelector('.medio-nombre'), antes = nom && nom.textContent;
+    if (nom) nom.textContent = 'Cargando…';
+    obtenerMedio(id).then(function (r) {
+      if (que === 'audio') { b.outerHTML = '<audio class="medio-audio" controls autoplay src="' + r.url + '"></audio>'; return; }
+      if (nom) nom.textContent = antes;
+      var a = document.createElement('a'); a.href = r.url; a.target = '_blank'; a.rel = 'noopener'; a.download = r.nombre || 'archivo';
+      document.body.appendChild(a); a.click(); a.remove();
+    }).catch(function (err) { if (nom) nom.textContent = antes; toast('No se pudo abrir: ' + err.message, 'error'); });
+  });
+
   // Texto completo de la plantilla aprobada (en la hoja solo se guarda "Plantilla de primer contacto").
   var TEXTO_PLANTILLA = 'Dr(a). {apellido}:\n\nEspero que se encuentre bien. Le escribo en nombre de Alto Espacio, colaborador de MÉDICA COUNTRY, un nuevo desarrollo médico en la colonia Country Club de Guadalajara. Le invitamos a unirse a nuestra lista de preventa fase 0.\n\nMÉDICA COUNTRY, desarrollado por GRUPO OPERA y GRUPO INVERTI grupos responsables de Médica Acueducto, tendrá 15 niveles de consultorios y clínicas especializadas, sanitarios, elevadores y recepción en cada piso. Comedor, cafetería, laboratorio, gimnasio y valet parking para profesionales de la salud y 6 niveles de estacionamiento.\n\nLa entrega es en diciembre de 2029. Tenemos promociones como meses sin intereses, crédito interno y las mensualidades más bajas. Enganche desde el 10%, 20% en mensualidades durante obra y 70% contra entrega, opción de crédito bancario preferencial. Unidades con vista panorámica desde $1,182,067.00, apartado con solo $50,000.00, reembolsables.\n\nQuedo a su disposición para brindarle más información.\n\nMarco Smith\nAlto Espacio';
   function textoPlantilla(m, c) {
@@ -485,14 +581,14 @@
         else if (est === 'delivered') vista = '<span class="estado">' + CHECK2 + '</span>';
         else if (est === 'failed') vista = '<span class="estado fallo">No se entregó</span>';
         else vista = '<span class="estado">' + CHECK1 + '</span>';
-        html += '<div class="globo salida' + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
+        html += '<div class="globo salida' + (esMedio(m) ? ' con-medio' : '') + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
           (m.tipo === 'plantilla'
             ? '<span class="marca">Plantilla · primer contacto</span><span class="txt plegado">' + esc(textoPlantilla(m, c)) + '</span><button type="button" class="ver-plantilla">Ver mensaje completo</button>'
-            : '<span class="txt">' + esc(m.texto) + '</span>') +
+            : medioHtml(m) + (m.texto && m.tipo !== 'location' && m.tipo !== 'contacts' ? '<span class="txt">' + esc(m.texto) + '</span>' : '')) +
           '<span class="meta">' + hora(m.hora) + ' ' + vista + '</span></div>' +
           (est === 'error' ? '<button class="reintentar-msg" data-i="' + i + '">No se envió · ' + esc(m.error || '') + ' <b>Reintentar</b></button>' : '');
       } else {
-        html += '<div class="globo entrada">' + (m.tipo === 'button' || m.tipo === 'interactive' ? '<span class="marca">Tocó el botón</span>' : '') + '<span class="txt">' + esc(m.texto) + '</span><span class="meta">' + hora(m.hora) + '</span></div>';
+        html += '<div class="globo entrada' + (esMedio(m) ? ' con-medio' : '') + '">' + (m.tipo === 'button' || m.tipo === 'interactive' ? '<span class="marca">Tocó el botón</span>' : '') + medioHtml(m) + (m.texto && m.tipo !== 'location' && m.tipo !== 'contacts' ? '<span class="txt">' + esc(m.texto) + '</span>' : '') + '<span class="meta">' + hora(m.hora) + '</span></div>';
       }
     });
     return html;
@@ -551,6 +647,7 @@
       inp.placeholder = puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla');
     }
     enlazarReintentos();
+    cargarMedios();
     pintarFicha(c);
   }
 
@@ -580,18 +677,26 @@
       // Como WhatsApp: con texto se ve el botón de enviar; sin texto, cámara y micrófono.
       inp.parentNode.classList.toggle('con-texto', !!inp.value.trim());
     }
-    // "+", cámara y micrófono (por ahora solo el diseño; mandar archivos viene después).
-    var pronto = function (que) { toast('Muy pronto podrás mandar ' + que + ' desde aquí'); };
+    // "+", cámara y micrófono: mandar fotos, documentos, ubicación, contactos y audios.
     $('btnMas').onclick = function () {
       var ops = [['fotos', 'Fotos', 'fotos'], ['camara2', 'Cámara', 'camara'], ['ubicacion', 'Ubicación', 'ubicacion'], ['contacto', 'Contacto', 'contacto'], ['documento', 'Documento', 'documento']];
       abrirHoja('<div class="adjuntar">' + ops.map(function (o) {
-        return '<button type="button" class="adjuntar-op" data-que="' + o[1] + '"><span class="adjuntar-ic ' + o[2] + '">' + ICON[o[0]] + '</span><span>' + o[1] + '</span></button>';
+        return '<button type="button" class="adjuntar-op" data-op="' + o[2] + '"><span class="adjuntar-ic ' + o[2] + '">' + ICON[o[0]] + '</span><span>' + o[1] + '</span></button>';
       }).join('') + '</div>', function (h) {
-        h.querySelectorAll('.adjuntar-op').forEach(function (b) { b.onclick = function () { cerrarHoja(); pronto(b.getAttribute('data-que').toLowerCase() === 'fotos' ? 'fotos' : b.getAttribute('data-que').toLowerCase() === 'cámara' ? 'fotos de la cámara' : b.getAttribute('data-que').toLowerCase() === 'ubicación' ? 'tu ubicación' : b.getAttribute('data-que').toLowerCase() === 'contacto' ? 'contactos' : 'documentos'); }; });
+        h.querySelectorAll('.adjuntar-op').forEach(function (b) {
+          b.onclick = function () {
+            var op = b.getAttribute('data-op'); cerrarHoja();
+            if (op === 'fotos') elegirArchivo('image/*', false, prepararFoto);
+            else if (op === 'camara') elegirArchivo('image/*', true, prepararFoto);
+            else if (op === 'documento') elegirArchivo('', false, prepararDocumento);
+            else if (op === 'ubicacion') prepararUbicacion();
+            else if (op === 'contacto') prepararContacto();
+          };
+        });
       });
     };
-    $('btnCamara').onclick = function () { pronto('fotos de la cámara'); };
-    $('btnMicro').onclick = function () { pronto('audios'); };
+    $('btnCamara').onclick = function () { elegirArchivo('image/*', true, prepararFoto); };
+    $('btnMicro').onclick = grabarAudio;
     inp.oninput = ajustar; ajustar();
     inp.onkeydown = function (ev) { if (ev.key === 'Enter' && !ev.shiftKey && esCompu()) { ev.preventDefault(); $('formMsg').requestSubmit ? $('formMsg').requestSubmit() : $('formMsg').onsubmit(ev); } };
     $('formMsg').onsubmit = function (ev) {
@@ -611,10 +716,154 @@
       b.onclick = function () {
         var cv = E.convs[E.telSel], m = cv && cv.mensajes[Number(b.getAttribute('data-i'))];
         if (!m) return;
+        if (m._reenviar) { m.estado = 'pendiente'; m.error = ''; pintarConv(false); m._reenviar(); return; }
         cv.mensajes.splice(cv.mensajes.indexOf(m), 1);
         enviar(E.telSel, m.texto);
       };
     });
+  }
+
+  // ---------- Mandar archivos
+  function elegirArchivo(accept, camara, alElegir) {
+    var inp = document.createElement('input');
+    inp.type = 'file'; if (accept) inp.accept = accept; if (camara) inp.setAttribute('capture', 'environment');
+    inp.style.display = 'none';
+    inp.onchange = function () { var f = inp.files && inp.files[0]; inp.remove(); if (f) alElegir(f); };
+    document.body.appendChild(inp); inp.click();
+  }
+  function leerBase64(blob) {
+    return new Promise(function (ok, mal) {
+      var r = new FileReader();
+      r.onload = function () { var s = String(r.result); ok({ dataUrl: s, base64: s.slice(s.indexOf(',') + 1) }); };
+      r.onerror = function () { mal(new Error('No se pudo leer el archivo')); };
+      r.readAsDataURL(blob);
+    });
+  }
+  // Las fotos se achican (máx. 1600 px) para que suban rápido.
+  function comprimirFoto(file) {
+    return new Promise(function (ok, mal) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var max = 1600, k = Math.min(1, max / Math.max(img.width, img.height));
+        var cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+        var s = cv.toDataURL('image/jpeg', 0.82);
+        ok({ dataUrl: s, base64: s.slice(s.indexOf(',') + 1), mime: 'image/jpeg', nombre: 'foto.jpg' });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); mal(new Error('No se pudo abrir la foto')); };
+      img.src = url;
+    });
+  }
+  function hojaEnviar(html, alEnviar) {
+    abrirHoja(html + '<div class="hoja-botones"><button class="boton-sec" data-r="no">Cancelar</button><button class="boton" data-r="si">Enviar</button></div>', function (h) {
+      h.querySelector('[data-r="no"]').onclick = function () { cerrarHoja(); };
+      h.querySelector('[data-r="si"]').onclick = function () { if (alEnviar(h) !== false) cerrarHoja(); };
+    });
+  }
+  function prepararFoto(file) {
+    var tel = E.telSel;
+    comprimirFoto(file).then(function (f) {
+      hojaEnviar('<h2 class="hoja-titulo">Mandar foto</h2><img class="vista-foto" src="' + f.dataUrl + '" alt="Foto">' +
+        '<label class="oculto" for="pieFoto">Comentario</label><input id="pieFoto" class="campo" placeholder="Añade un comentario (opcional)">', function (h) {
+        var pie = h.querySelector('#pieFoto').value.trim();
+        enviarMedio(tel, { tipo: 'image', texto: pie, local: f.dataUrl, archivo: { mime: f.mime, nombre: f.nombre } }, 'Tú: 📷 Foto', function () {
+          return api('enviarArchivo', tel, { tipo: 'imagen', nombre: f.nombre, mime: f.mime, base64: f.base64, pie: pie });
+        });
+      });
+    }).catch(function (e) { toast(e.message, 'error'); });
+  }
+  function prepararDocumento(file) {
+    var tel = E.telSel;
+    if (file.size > 15 * 1024 * 1024) return toast('El archivo pesa más de 15 MB', 'error');
+    var mb = file.size > 1048576 ? (file.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(file.size / 1024)) + ' KB';
+    hojaEnviar('<h2 class="hoja-titulo">Mandar documento</h2><div class="medio doc grande"><span class="medio-ic">' + ICON.documento + '</span><span class="medio-textos"><b>' + esc(file.name) + '</b><span>' + mb + '</span></span></div>', function () {
+      leerBase64(file).then(function (f) {
+        var mime = file.type || 'application/octet-stream';
+        enviarMedio(tel, { tipo: 'document', texto: '', archivo: { mime: mime, nombre: file.name } }, 'Tú: 📄 ' + file.name, function () {
+          return api('enviarArchivo', tel, { tipo: 'documento', nombre: file.name, mime: mime, base64: f.base64 });
+        });
+      }).catch(function (e) { toast(e.message, 'error'); });
+    });
+  }
+  function prepararUbicacion() {
+    var tel = E.telSel;
+    if (!navigator.geolocation) return toast('Tu teléfono no deja usar la ubicación aquí', 'error');
+    toast('Buscando tu ubicación…');
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var lat = +pos.coords.latitude.toFixed(6), lng = +pos.coords.longitude.toFixed(6);
+      hojaEnviar('<h2 class="hoja-titulo">Mandar mi ubicación</h2><p class="hoja-texto">Se manda tu ubicación actual (precisión de unos ' + Math.round(pos.coords.accuracy) + ' m).</p>' +
+        '<label class="rotulo" for="nomUbic">Nombre del lugar (opcional)</label><input id="nomUbic" class="campo" placeholder="Ej. Médica Country">', function (h) {
+        var nombre = h.querySelector('#nomUbic').value.trim();
+        enviarMedio(tel, { tipo: 'location', texto: nombre, archivo: { lat: lat, lng: lng, nombre: nombre } }, 'Tú: 📍 Ubicación', function () {
+          return api('enviarUbicacion', tel, lat, lng, nombre);
+        });
+      });
+    }, function () { toast('No se pudo obtener tu ubicación. Revisa que la app tenga permiso.', 'error'); }, { enableHighAccuracy: true, timeout: 15000 });
+  }
+  function prepararContacto() {
+    var tel = E.telSel;
+    hojaEnviar('<h2 class="hoja-titulo">Mandar un contacto</h2>' +
+      '<label class="rotulo" for="nomContacto">Nombre</label><input id="nomContacto" class="campo" placeholder="Ej. Diego McGregor">' +
+      '<label class="rotulo" for="telContacto">Teléfono</label><input id="telContacto" class="campo" type="tel" inputmode="tel" placeholder="33 1234 5678">', function (h) {
+      var nombre = h.querySelector('#nomContacto').value.trim(), t = h.querySelector('#telContacto').value.replace(/[^\d+]/g, '');
+      if (!nombre || t.replace(/\D/g, '').length < 10) { toast('Pon nombre y teléfono de 10 dígitos', 'error'); return false; }
+      if (t.replace(/\D/g, '').length === 10) t = '+52' + t.replace(/\D/g, '');
+      enviarMedio(tel, { tipo: 'contacts', texto: '', archivo: { nombre: nombre, tel: t } }, 'Tú: 👤 ' + nombre, function () {
+        return api('enviarContacto', tel, nombre, t);
+      });
+    });
+  }
+  // Notas de voz: se toca el micrófono para grabar; luego "Enviar" o la basura para cancelar.
+  function grabarAudio() {
+    var tel = E.telSel, form = $('formMsg');
+    if (!navigator.mediaDevices || !window.MediaRecorder) return toast('Tu teléfono no deja grabar audio aquí', 'error');
+    var tipos = ['audio/mp4', 'audio/ogg;codecs=opus', 'audio/aac'], mime = '';
+    for (var i = 0; i < tipos.length; i++) if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(tipos[i])) { mime = tipos[i]; break; }
+    if (!mime) return toast('Este navegador no graba en un formato que acepte WhatsApp', 'error');
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      var rec = new MediaRecorder(stream, { mimeType: mime }), partes = [], inicio = Date.now(), cancelado = false;
+      var barra = document.createElement('div'); barra.className = 'grabando';
+      barra.innerHTML = '<button type="button" class="extra-btn" data-g="cancelar" aria-label="Cancelar">' + ICON.basura + '</button><span class="grab-punto"></span><span class="grab-tiempo">0:00</span><span class="grab-texto">Grabando…</span><button type="button" class="enviar" data-g="enviar" aria-label="Enviar audio">' + ICON.mandar + '</button>';
+      form.appendChild(barra);
+      var reloj = setInterval(function () { var s = Math.floor((Date.now() - inicio) / 1000); barra.querySelector('.grab-tiempo').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }, 500);
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) partes.push(e.data); };
+      rec.onstop = function () {
+        clearInterval(reloj); stream.getTracks().forEach(function (t) { t.stop(); }); barra.remove();
+        if (cancelado || !partes.length) return;
+        var blob = new Blob(partes, { type: mime.split(';')[0] });
+        var nombre = 'audio' + (mime.indexOf('ogg') > -1 ? '.ogg' : '.m4a');
+        leerBase64(blob).then(function (f) {
+          enviarMedio(tel, { tipo: 'audio', texto: '', local: URL.createObjectURL(blob), archivo: { mime: blob.type, nombre: nombre } }, 'Tú: 🎤 Audio', function () {
+            return api('enviarArchivo', tel, { tipo: 'audio', nombre: nombre, mime: blob.type, base64: f.base64 });
+          });
+        });
+      };
+      barra.querySelector('[data-g="cancelar"]').onclick = function () { cancelado = true; rec.stop(); };
+      barra.querySelector('[data-g="enviar"]').onclick = function () { rec.stop(); };
+      rec.start();
+    }).catch(function () { toast('No hay permiso para usar el micrófono', 'error'); });
+  }
+  /** Igual que un texto: aparece al instante con relojito; luego palomita o "Reintentar". */
+  function enviarMedio(tel, datos, vista, mandar) {
+    var cv = E.convs[tel] || (E.convs[tel] = { contacto: contactoDe(tel), mensajes: [], ventanaAbierta: true, _t: Date.now() });
+    var m = { direccion: 'salida', tipo: datos.tipo, texto: datos.texto || '', archivo: datos.archivo, local: datos.local, estado: 'pendiente', hora: new Date().toISOString(), _tmp: true };
+    m._reenviar = function () {
+      mandar().then(function (r) {
+        m.estado = 'enviado'; if (r && r.hora) m.hora = r.hora;
+        if (r && r.archivo) { m.archivo = r.archivo; if (m.local) E.medios[r.archivo.id] = { url: m.local, promesa: Promise.resolve({ url: m.local, nombre: r.archivo.nombre }) }; }
+        if (E.telSel === tel) pintarConv(false);
+        guardarCache();
+        setTimeout(sincronizar, 1500);
+      }).catch(function (e) {
+        m.estado = 'error'; m.error = e.message.replace(/^Meta: /, '');
+        if (E.telSel === tel) pintarConv(false); else toast('No se envió: ' + e.message, 'error');
+      });
+    };
+    cv.mensajes.push(m);
+    moverArriba(tel, vista, m.hora);
+    pintarConv(false);
+    var mm = $('mensajes'); if (mm) mm.scrollTop = mm.scrollHeight;
+    m._reenviar();
   }
 
   /** Manda un texto: aparece al instante con relojito; luego palomita o "Reintentar". */
