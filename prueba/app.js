@@ -922,7 +922,7 @@
     if (/\/prueba\//.test(location.pathname)) {
       var dg = document.getElementById('diag');
       if (!dg) { dg = document.createElement('div'); dg.id = 'diag'; document.body.appendChild(dg); }
-      dg.textContent = 'v10 · ' + (instalada ? 'app' : 'safari') + ' · alto ' + window.innerHeight + '/' + pantalla + ' · arr ' + arriba + ' · ab ' + abajo + ' · hueco ' + hueco;
+      dg.textContent = 'v11 · ' + (instalada ? 'app' : 'safari') + ' · alto ' + window.innerHeight + '/' + pantalla + ' · arr ' + arriba + ' · ab ' + abajo + ' · hueco ' + hueco;
     }
   };
   window.addEventListener('resize', medirHueco);
