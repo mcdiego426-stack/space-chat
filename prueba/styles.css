@@ -315,5 +315,10 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 }
 
 /* iOS 26: el encabezado verde fijo arriba hace que el iPhone pinte la barra de la hora de verde en vez de difuminarla. */
+/* iOS 26: una franja verde fija y tocable en la orilla de arriba le indica al iPhone de qué color pintar la barra de la hora
+   (si no la encuentra, pone su difuminado). Es del mismo verde que el encabezado, así que no se nota. */
+#extension-color { position: fixed; top: 0; left: 0; right: 0; height: 12px; background: var(--verde); z-index: 30; }
+body:has(.login) #extension-color { background: #0D7A5A; }
+@media (min-width: 900px) { #extension-color { display: none; } }
 /* Línea de diagnóstico (solo en la copia de prueba). */
 #diag { position: fixed; right: 6px; top: calc(env(safe-area-inset-top) + 2px); z-index: 99; font: 10px/1.2 ui-monospace, monospace; background: rgba(0,0,0,.6); color: #fff; padding: 2px 5px; border-radius: 4px; pointer-events: none; }
