@@ -1,5 +1,5 @@
-/* Space Chat — service worker: abre la app al instante con lo guardado, se actualiza por detrás y muestra notificaciones. */
-var CACHE = 'space-chat-prueba-1';
+/* Space Chat — service worker: siempre intenta la versión más nueva; si no hay internet (o tarda mucho), abre con lo guardado. También muestra notificaciones. */
+var CACHE = 'space-chat-prueba-2';
 var ARCHIVOS = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.json', '../icon-192.png', '../icon-512.png'];
 
 self.addEventListener('install', function (e) {
@@ -13,15 +13,17 @@ self.addEventListener('activate', function (e) {
   }).then(function () { return self.clients.claim(); }));
 });
 
-// Archivos de la app: responde con lo guardado (instantáneo) y en paralelo baja la versión nueva para la próxima vez.
+// Archivos de la app: primero la versión nueva de internet (así los cambios se ven a la primera);
+// si no hay señal o tarda más de 3 segundos, se usa lo guardado.
 self.addEventListener('fetch', function (e) {
   var url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(caches.open(CACHE).then(function (c) {
-    return c.match(e.request, { ignoreSearch: true }).then(function (guardado) {
-      var red = fetch(e.request).then(function (r) { if (r && r.ok) c.put(e.request, r.clone()); return r; });
-      if (guardado) { e.waitUntil(red.catch(function () {})); return guardado; }
-      return red;
+    var red = fetch(e.request, { cache: 'no-store' }).then(function (r) { if (r && r.ok) c.put(e.request, r.clone()); return r; });
+    var espera = new Promise(function (listo) { setTimeout(listo, 3000); });
+    return Promise.race([red.catch(function () {}), espera]).then(function (r) {
+      if (r) return r;
+      return c.match(e.request, { ignoreSearch: true }).then(function (guardado) { return guardado || red; });
     });
   }));
 });
