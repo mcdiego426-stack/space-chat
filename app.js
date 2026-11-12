@@ -377,10 +377,11 @@
     }; });
     var bp = $('btnPiloto');
     if (bp) bp.onclick = function () {
-      if (!E.marco) return;
-      bp.disabled = true;
-      api('marcoActivar', !E.marco.auto).then(function (r) { E.marco = r; refrescarListaChats(); toast(r.auto ? 'Piloto automático encendido: Marco contesta solo' : 'Piloto automático apagado'); })
-        .catch(function (e) { toast(e.message, 'error'); bp.disabled = false; });
+      if (!E.marco || E.marcoGuardando) return;
+      var antes = E.marco.auto; E.marco.auto = !antes; E.marcoGuardando = true; refrescarListaChats();   // cambia al instante
+      api('marcoActivar', E.marco.auto).then(function (r) { E.marco.auto = r.auto; toast(r.auto ? 'Piloto automático encendido: Marco contesta solo' : 'Piloto automático apagado'); })
+        .catch(function (e) { E.marco.auto = antes; toast(e.message, 'error'); })
+        .then(function () { E.marcoGuardando = false; refrescarListaChats(); });
     };
   }
   function cargarMarco() {
