@@ -462,3 +462,6 @@ body:has(.login) #extension-color { background: #0D7A5A; }
 .marco-resumen summary u { opacity: .75; }
 .marco-resumen .mr-texto { margin-top: 4px; }
 .marco-resumen .mr-datos { margin-top: 2px; opacity: .75; }
+
+/* Sin teclado: el encabezado del chat un poco más abajo para que no quede bajo lo nublado de arriba del iPhone */
+html:not(.con-teclado) #app > .conv .conv-barra { padding-top: calc(env(safe-area-inset-top) + 22px); }
