@@ -368,7 +368,7 @@
       } else {
         app.innerHTML = '<header class="barra"><div class="barra-fila"><h1>Space Chat' + (DEMO ? ' <span class="badge demo">Demo</span>' : '') + '</h1><div class="barra-der"><button class="icono-btn" data-accion="notif" aria-label="Activar notificaciones">' + ICON.campana + '</button><button class="icono-btn" data-accion="salir" aria-label="Cerrar sesión">' + ICON.salir + '</button></div></div>' +
           '<label class="oculto" for="buscaChat">Buscar chat</label><input id="buscaChat" class="buscar" type="search" placeholder="Buscar chat" value="' + esc(E.buscaChat) + '">' + chipsChat(true) + '</header>' +
-          '<div class="contenido" id="listaChats"></div>' + tabs();
+          '<div class="contenido blanco" id="listaChats"></div>' + tabs();
       }
       enlazarComunes();
       var bc = $('buscaChat');
@@ -457,7 +457,14 @@
     return null;
   }
 
-  function burbujas(mensajes) {
+  // Texto completo de la plantilla aprobada (en la hoja solo se guarda "Plantilla de primer contacto").
+  var TEXTO_PLANTILLA = 'Dr(a). {apellido}:\n\nEspero que se encuentre bien. Le escribo en nombre de Alto Espacio, colaborador de MÉDICA COUNTRY, un nuevo desarrollo médico en la colonia Country Club de Guadalajara. Le invitamos a unirse a nuestra lista de preventa fase 0.\n\nMÉDICA COUNTRY, desarrollado por GRUPO OPERA y GRUPO INVERTI grupos responsables de Médica Acueducto, tendrá 15 niveles de consultorios y clínicas especializadas, sanitarios, elevadores y recepción en cada piso. Comedor, cafetería, laboratorio, gimnasio y valet parking para profesionales de la salud y 6 niveles de estacionamiento.\n\nLa entrega es en diciembre de 2029. Tenemos promociones como meses sin intereses, crédito interno y las mensualidades más bajas. Enganche desde el 10%, 20% en mensualidades durante obra y 70% contra entrega, opción de crédito bancario preferencial. Unidades con vista panorámica desde $1,182,067.00, apartado con solo $50,000.00, reembolsables.\n\nQuedo a su disposición para brindarle más información.\n\nMarco Smith\nAlto Espacio';
+  function textoPlantilla(m, c) {
+    var t = m.texto || '';
+    if (!t || /^Plantilla de primer contacto$/i.test(t) || /…$/.test(t)) t = TEXTO_PLANTILLA.replace('{apellido}', (c && c.apellido) || '');
+    return t;
+  }
+  function burbujas(mensajes, c) {
     var html = '', ultimoDia = '';
     mensajes.forEach(function (m, i) {
       var d = dia(m.hora);
@@ -471,7 +478,9 @@
         else if (est === 'failed') vista = '<span class="estado fallo">No se entregó</span>';
         else vista = '<span class="estado">' + CHECK1 + '</span>';
         html += '<div class="globo salida' + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
-          (m.tipo === 'plantilla' ? '<span class="marca">Plantilla · primer contacto</span>' : '') + '<span class="txt">' + esc(m.texto) + '</span>' +
+          (m.tipo === 'plantilla'
+            ? '<span class="marca">Plantilla · primer contacto</span><span class="txt plegado">' + esc(textoPlantilla(m, c)) + '</span><button type="button" class="ver-plantilla">Ver mensaje completo</button>'
+            : '<span class="txt">' + esc(m.texto) + '</span>') +
           '<span class="meta">' + hora(m.hora) + ' ' + vista + '</span></div>' +
           (est === 'error' ? '<button class="reintentar-msg" data-i="' + i + '">No se envió · ' + esc(m.error || '') + ' <b>Reintentar</b></button>' : '');
       } else {
@@ -500,7 +509,7 @@
       ? '<div class="ventana cerrada">Pidió BAJA: no se le puede volver a escribir.</div>'
       : resto ? '<div class="ventana">' + ICON.reloj + '<span><b>Puedes escribirle libre</b> por ' + resto + '</span></div>'
         : (cv ? '<div class="ventana cerrada">Pasaron más de 24 h desde su último mensaje: solo se puede mandar plantilla.</div>' : '');
-    var cuerpoMsgs = cv ? (cv.mensajes.length ? burbujas(cv.mensajes) : '<p class="vacio">Sin mensajes todavía.</p>')
+    var cuerpoMsgs = cv ? (cv.mensajes.length ? burbujas(cv.mensajes, c) : '<p class="vacio">Sin mensajes todavía.</p>')
       : '<div class="cargando-msgs"><span></span><span></span><span></span></div>';
 
     if (inicial || !$('formMsg')) {
@@ -859,6 +868,14 @@
       .catch(function (e) { toast(e.message, 'error'); });
   }
 
+  // Abrir / cerrar el texto completo de la plantilla.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.ver-plantilla');
+    if (!b) return;
+    var g = b.parentNode, abierta = g.classList.toggle('abierta');
+    b.textContent = abierta ? 'Ver menos' : 'Ver mensaje completo';
+  });
+
   // ------------------------------------------------------------------ gestos y teclado del celular
   // Deslizar desde la orilla izquierda en un chat = regresar (como en WhatsApp).
   (function () {
@@ -932,6 +949,8 @@
   if (window.visualViewport) {
     var vv = window.visualViewport, raiz = document.documentElement;
     var tecladoAbierto = false, pegadoAlFinal = true, fijarHasta = 0, fijando = false;
+    // Lo que se asoma detrás del teclado: del mismo gris claro que la caja de escribir (no el verde del fondo).
+    var bajoTeclado = document.createElement('div'); bajoTeclado.id = 'bajo-teclado'; document.body.appendChild(bajoTeclado);
     var distanciaAlFinal = function (mm) { return mm.scrollHeight - mm.scrollTop - mm.clientHeight; };
     var alFinal = function () { var mm = $('mensajes'); if (mm) mm.scrollTop = mm.scrollHeight; };
     // Durante la animación del teclado, mantener el chat en el último mensaje cuadro por cuadro.
@@ -962,7 +981,10 @@
       if (abierto !== tecladoAbierto) {
         raiz.classList.toggle('con-teclado', abierto);
         tecladoAbierto = abierto;
-        if (!abierto) window.scrollTo(0, 0);
+        // El iPhone empuja la página hacia arriba al abrir el teclado y escondía el encabezado del chat:
+        // se regresa a su lugar (una vez, cuando termina de abrir; no a cada rato, para que no tiemble).
+        window.scrollTo(0, 0);
+        if (abierto) { setTimeout(function () { window.scrollTo(0, 0); ajustarAlto(); }, 60); setTimeout(function () { window.scrollTo(0, 0); ajustarAlto(); }, 350); }
         fijarAlFinal(700);
       } else if (pegadoAlFinal) alFinal();
     };
