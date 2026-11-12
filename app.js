@@ -1270,6 +1270,7 @@
         (u ? '<section class="tarjeta grid2"><div class="dato"><span>Entregados</span><b>' + u.entregados + ' de ' + u.enviados + '</b></div><div class="dato"><span>Dijeron Sí</span><b class="verde">' + u.si + '</b></div><div class="dato"><span>BAJA / bloqueos</span><b class="rojo">' + u.baja + '</b></div><div class="dato"><span>Sin respuesta</span><b>' + Math.max(0, u.entregados - u.si - u.baja) + '</b></div></section>' : '') +
         '<section class="tarjeta"><span class="rotulo">Según Meta</span><div class="fila-dato"><span>Calidad del número</span><b>' + esc(E.semaforo ? calidadNumero(s.calidadMeta) : '…') + '</b></div><div class="fila-dato"><span>Plantilla</span><b>' + esc(E.semaforo ? estadoPlantilla(s.estadoPlantilla) : '…') + '</b></div><div class="fila-dato"><span>Tope diario</span><b>' + (s.tope || 250) + '</b></div></section>' +
         (s.gasto ? '<section class="tarjeta"><span class="rotulo">Gasto en WhatsApp · ' + esc(s.gasto.mes) + '</span><div class="fila-dato"><span>Lo que llevas este mes</span><b>$' + Number(s.gasto.conIva).toFixed(2) + ' con IVA</b></div><div class="fila-dato"><span>Mensajes cobrados</span><b>' + s.gasto.plantillas + '</b></div><div class="fila-dato"><span>Mensajes gratis</span><b>' + (s.gasto.gratis || 0) + '</b></div><span class="nota">' + (s.gasto.fuente === 'Meta' ? 'Dato de Meta, actualizado ' + esc(horaCorta(s.gasto.hora)) + '. Meta lo cobra a tu tarjeta después, todo junto.' : 'Cálculo aproximado (Meta no contestó). Meta lo cobra a tu tarjeta después.') + '</span></section>' : '') +
+        (E.marco ? '<section class="tarjeta"><span class="rotulo">Marco (agente)</span><div class="fila-dato"><span>Contesta solo a los doctores</span><b class="' + (E.marco.auto ? 'verde' : '') + '">' + (E.marco.auto ? 'Prendido' : 'Apagado') + '</b></div>' + (E.marco.clave ? '' : '<span class="nota">Falta la clave de Gemini (GEMINI_KEY).</span>') + '<span class="nota">Contesta solo dentro de las 24 h gratis. Si piden cita, visita, cotización o apartar, te avisa y deja ese chat para ti.' + (E.marco.pausados ? ' Chats que te ha pasado: ' + E.marco.pausados + '.' : '') + '</span><button type="button" class="boton-sec chico-btn" id="btnMarcoAuto" style="margin-top:8px">' + (E.marco.auto ? 'Apagar a Marco' : 'Prender a Marco') + '</button></section>' : '') +
         '<section class="tarjeta reglas"><span class="rotulo">Reglas (lotes chicos)</span><span><b class="verde">Verde</b> · 0 a 1 BAJA o bloqueo: seguir</span><span><b class="ambar">Amarillo</b> · 2 BAJA: pausar y cambiar mensaje</span><span><b class="rojo">Rojo</b> · 3 o más, o Meta marca la plantilla: parar</span></section>' +
         (s.lotes.length ? '<section class="panel solo-escritorio"><div class="rotulo" style="padding:14px 18px">Historial de lotes</div><div style="overflow-x:auto"><table class="tabla"><thead><tr><th>Lote</th><th>Fecha</th><th>Enviados</th><th>Entregados</th><th>Sí</th><th>BAJA</th><th>Semáforo</th></tr></thead><tbody>' +
           s.lotes.map(function (l) { return '<tr><td><b>' + l.lote + '</b></td><td>' + new Date(l.fecha).toLocaleDateString('es-MX') + '</td><td>' + l.enviados + '</td><td>' + l.entregados + '</td><td>' + l.si + '</td><td>' + l.baja + '</td><td><span class="badge ' + (l.semaforo === 'Verde' ? 'e-Interesado' : l.semaforo === 'Rojo' ? 'e-BAJA' : 'e-Cita') + '">' + l.semaforo + '</span></td></tr>'; }).join('') +
@@ -1278,8 +1279,15 @@
       if (esCompu()) app.innerHTML = barraEscritorio() + '<div class="contenido"><div class="pagina angosta"><h1>Semáforo</h1>' + cuerpo + '</div></div>';
       else app.innerHTML = '<header class="barra"><h1>Semáforo</h1></header><div class="contenido"><div class="pagina">' + cuerpo + '</div></div>' + tabs();
       enlazarComunes();
+      var bm = $('btnMarcoAuto');
+      if (bm) bm.onclick = function () {
+        bm.disabled = true;
+        api('marcoActivar', !E.marco.auto).then(function (r) { E.marco = r; dibujar(); toast(r.auto ? 'Marco ya contesta solo' : 'Marco apagado'); })
+          .catch(function (e) { toast(e.message, 'error'); bm.disabled = false; });
+      };
     }
     dibujar();
+    api('marcoEstado').then(function (r) { E.marco = r; dibujar(); }).catch(function () {});
     api('semaforo').then(function (s) { E.semaforo = s; dibujar(); }).catch(function (e) { toast(e.message, 'error'); });
   }
 
