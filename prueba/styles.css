@@ -25,7 +25,7 @@ html, body { margin: 0; height: 100%; overscroll-behavior: none; touch-action: m
 body { overflow: hidden; }
 /* Que mantener presionado un chat no abra el menú de "copiar enlace" ni seleccione texto. */
 .fila, .tab, .chip, .boton, .boton-sec, .icono-btn, .enviar, .etapa-op, .conv-quien, .redondo, .badge-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-body { font-family: Inter, -apple-system, system-ui, sans-serif; color: var(--texto); background: var(--fondo); -webkit-font-smoothing: antialiased; }
+body { font-family: Inter, -apple-system, system-ui, sans-serif; color: var(--texto); background: #fff; -webkit-font-smoothing: antialiased; }
 button, input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; }
 button { cursor: pointer; }
 a { color: var(--verde); }
@@ -34,7 +34,8 @@ a { color: var(--verde); }
 h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 
 /* ---------- Estructura ---------- */
-#app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+#app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--fondo); }
+/* El iPhone pinta la franja de abajo con el color de fondo de la página: blanco, para que se vea parte de las pestañas. */
 /* Con el teclado abierto: la app ocupa solo lo visible arriba del teclado y lo sigue. */
 .con-teclado #app { position: fixed; left: 0; right: 0; top: 0; height: var(--vv-alto, 100dvh); transform: translateY(var(--vv-arriba, 0px)); }
 .con-teclado .redactar { padding-bottom: 8px; }
