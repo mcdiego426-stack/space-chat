@@ -1521,12 +1521,34 @@
     // se guarda la altura más grande que se ha visto y, si hay una caja de escribir activa y la vista se encogió, es el teclado.
     var altoBase = 0;
     window.addEventListener('orientationchange', function () { altoBase = 0; });
+    // Como WhatsApp: al tocar la caja de escribir, la app se acomoda de una vez al tamaño del teclado (el que midió la vez pasada),
+    // antes de que el teclado suba. Así el iPhone ya no empuja la pantalla y el encabezado no se mueve.
+    var altoTeclado = 0;
+    try { altoTeclado = Number(localStorage.getItem('sc_teclado')) || 0; } catch (e) {}
+    var anticipar = function (e) {
+      var x = e.target;
+      if (!x || x.id !== 'msg' || x.disabled || tecladoAbierto || !altoTeclado) return;
+      var base = altoBase || window.innerHeight;
+      raiz.style.setProperty('--vv-alto', Math.round(base - altoTeclado) + 'px');
+      raiz.style.setProperty('--vv-arriba', '0px');
+      raiz.classList.add('con-teclado');
+      pegadoAlFinal = true; alFinal();
+      // Si al final no se abrió el teclado (solo deslizó), regresa como estaba.
+      setTimeout(function () { if (!tecladoAbierto && document.activeElement !== x) raiz.classList.remove('con-teclado'); }, 900);
+    };
+    document.addEventListener('touchstart', anticipar, { capture: true, passive: true });
     var ajustarAlto = function () {
       altoBase = Math.max(altoBase, vv.height, tecladoAbierto ? 0 : window.innerHeight);
       var ae = document.activeElement, foco = !!ae && /^(TEXTAREA|INPUT)$/.test(ae.tagName);
       var abierto = (window.innerHeight - vv.height) > 80 || (foco && altoBase - vv.height > 120);
+      if (abierto && altoBase - vv.height > 150 && Math.abs(altoBase - vv.height - altoTeclado) > 4) {
+        altoTeclado = Math.round(altoBase - vv.height);
+        try { localStorage.setItem('sc_teclado', String(altoTeclado)); } catch (e) {}
+      }
       if (abierto) {
-        raiz.style.setProperty('--vv-alto', Math.round(vv.height) + 'px');
+        // Mientras el teclado va subiendo, se queda la altura ya calculada (no cuadro por cuadro, para que no brinque).
+        var previsto = altoTeclado ? Math.round(altoBase - altoTeclado) : 0;
+        raiz.style.setProperty('--vv-alto', (previsto && Math.abs(previsto - vv.height) < 80 ? previsto : Math.round(vv.height)) + 'px');
         raiz.style.setProperty('--vv-arriba', Math.round(vv.offsetTop) + 'px');
       }
       if (abierto !== tecladoAbierto) {
