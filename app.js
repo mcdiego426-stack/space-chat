@@ -626,7 +626,7 @@
         '<div class="conv-cab-escritorio solo-escritorio"><div class="conv-cab-quien">' + avatar(c, 'chico') + '<div><div class="cab-nombre" id="cabNombre">' + esc(nombreDe(c)) + '</div><div class="nota" id="cabSub">' + esc(sub) + '</div></div></div><div class="cab-der"><button class="badge e-' + esc(c.etapa) + ' badge-btn" id="cabEtapa" title="Cambiar etapa">' + esc(c.etapa) + ' ▾</button><button class="icono-btn oscuro ficha-btn" id="verFicha3" aria-label="Ver ficha" title="Ver ficha">' + ICON.info + '</button></div></div>' +
         '<div id="avisoVentana">' + aviso + '</div></div>' +
         '<div class="mensajes" id="mensajes">' + cuerpoMsgs + '</div>' +
-        '<form class="redactar" id="formMsg" autocomplete="off"><div class="escribir">' +
+        '<form class="redactar" id="formMsg" autocomplete="off"><div class="marco-barra" style="display:flex;justify-content:flex-start;padding:0 4px 6px"><button type="button" class="boton-sec chico-btn" id="btnMarco" style="font-size:13px;padding:6px 12px"' + (puede ? '' : ' disabled') + '>✨ Sugerir respuesta (Marco)</button></div><div class="escribir">' +
         '<button type="button" class="extra-btn solo-cel" id="btnMas" aria-label="Adjuntar"' + (puede ? '' : ' disabled') + '>' + ICON.mas + '</button>' +
         '<label class="oculto" for="msg">Escribe un mensaje</label><textarea id="msg" rows="1" placeholder="' + (puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla')) + '"' + (puede ? '' : ' disabled') + '></textarea>' +
         '<button type="button" class="extra-btn solo-cel" id="btnCamara" aria-label="Cámara"' + (puede ? '' : ' disabled') + '>' + ICON.camara + '</button>' +
@@ -644,7 +644,7 @@
       if (cercaDelFinal) m.scrollTop = m.scrollHeight;
       var inp = $('msg'), btn = $('btnEnviar');
       inp.disabled = !puede; btn.disabled = !puede || !inp.value.trim();
-      ['btnMas', 'btnCamara', 'btnMicro'].forEach(function (id) { var x = $(id); if (x) x.disabled = !puede; });
+      ['btnMas', 'btnCamara', 'btnMicro', 'btnMarco'].forEach(function (id) { var x = $(id); if (x) x.disabled = !puede; });
       inp.placeholder = puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla');
     }
     enlazarReintentos();
@@ -698,6 +698,17 @@
     };
     $('btnCamara').onclick = function () { elegirArchivo('image/*', true, prepararFoto); };
     $('btnMicro').onclick = grabarAudio;
+    // Marco (Gemini) sugiere la respuesta; tú la revisas y la mandas.
+    $('btnMarco').onclick = function () {
+      var b = $('btnMarco'), antes = b.textContent, tel = E.telSel;
+      b.disabled = true; b.textContent = 'Marco está escribiendo…';
+      api('sugerirRespuesta', tel).then(function (t) {
+        if (E.telSel !== tel) return;
+        inp.value = t || ''; ajustar(); inp.focus();
+        toast('Revisa la sugerencia antes de mandarla');
+      }).catch(function (e) { toast(e.message, 'error'); })
+        .then(function () { var x = $('btnMarco'); if (x) { x.disabled = inp.disabled; x.textContent = antes; } });
+    };
     inp.oninput = ajustar; ajustar();
     inp.onkeydown = function (ev) { if (ev.key === 'Enter' && !ev.shiftKey && esCompu()) { ev.preventDefault(); $('formMsg').requestSubmit ? $('formMsg').requestSubmit() : $('formMsg').onsubmit(ev); } };
     $('formMsg').onsubmit = function (ev) {
