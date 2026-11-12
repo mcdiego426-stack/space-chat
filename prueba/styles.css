@@ -40,7 +40,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .con-teclado #app { position: fixed; left: 0; right: 0; top: 0; height: var(--vv-alto, 100dvh); transform: translateY(var(--vv-arriba, 0px)); }
 .con-teclado .redactar { padding-bottom: 8px; }
 .con-teclado .hoja-fondo { top: var(--vv-arriba, 0px); bottom: auto; height: var(--vv-alto, 100dvh); }
-.barra { background: var(--verde); color: #fff; padding: calc(env(safe-area-inset-top) + 14px) 16px 12px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+.barra { position: sticky; top: 0; z-index: 5; background: var(--verde); color: #fff; padding: calc(env(safe-area-inset-top) + 14px) 16px 12px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
 .barra-fila { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .barra-der { display: flex; align-items: center; gap: 4px; }
 .icono-btn { width: 42px; height: 42px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: inherit; border-radius: 21px; flex-shrink: 0; transition: background var(--rapido), transform var(--rapido); text-decoration: none; }
@@ -124,7 +124,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .conv { display: flex; flex-direction: column; height: 100%; background: var(--chat); }
 .conv.entra { animation: entrar .22s cubic-bezier(.2, .8, .2, 1); }
 @keyframes entrar { from { transform: translateX(28px); opacity: .4; } to { transform: none; opacity: 1; } }
-.conv-barra { background: var(--verde); color: #fff; padding: calc(env(safe-area-inset-top) + 8px) 6px 8px 2px; display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.conv-barra { position: sticky; top: 0; z-index: 5; background: var(--verde); color: #fff; padding: calc(env(safe-area-inset-top) + 8px) 6px 8px 2px; display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .conv-quien { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: none; border: none; color: #fff; text-align: left; padding: 4px 6px; border-radius: 10px; transition: background var(--rapido); }
 .conv-quien:active { background: rgba(255, 255, 255, .12); }
 .conv-textos { display: flex; flex-direction: column; min-width: 0; }
@@ -314,5 +314,6 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
+/* iOS 26: el encabezado verde fijo arriba hace que el iPhone pinte la barra de la hora de verde en vez de difuminarla. */
 /* Línea de diagnóstico (solo en la copia de prueba). */
 #diag { position: fixed; right: 6px; top: calc(env(safe-area-inset-top) + 2px); z-index: 99; font: 10px/1.2 ui-monospace, monospace; background: rgba(0,0,0,.6); color: #fff; padding: 2px 5px; border-radius: 4px; pointer-events: none; }
