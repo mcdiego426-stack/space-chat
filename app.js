@@ -354,17 +354,51 @@
       (p.pausa ? '<button class="boton-sec ancho" data-marco-retomar>Devolver chat a Marco</button>' : '');
   }
 
+  // ---------- Perfiles: Marco (prospectador, ve todo) y cada asesor (ve solo sus doctores)
+  var ASESORES = { 'mcdiego426@gmail.com': { id: 'diego', nombre: 'Diego McGregor', corto: 'Diego' }, 'betozepro@gmail.com': { id: 'humberto', nombre: 'Humberto Zepeda', corto: 'Humberto' } };
+  var NOMBRE_ASESOR = { diego: 'Diego', humberto: 'Humberto' };
+  function yo() { return ASESORES[String(E.sesion && E.sesion.correo || '').toLowerCase()] || null; }
+  (function () { try { E.vistaPerfil = localStorage.getItem('sc_perfil') || 'marco'; } catch (e) { E.vistaPerfil = 'marco'; } })();
+  function enMarco() { return E.vistaPerfil !== 'yo' || !yo(); }
+  function asesorDe(c) { var p = perfilMarco(c); return p && p.asesor || ''; }
+  function perfilBarra() {
+    var y = yo(), m = E.marco;
+    var piloto = enMarco() ? '<button type="button" class="chip' + (m && m.auto ? ' activo' : '') + '" id="btnPiloto" title="Marco contesta solo a los doctores">' + (m ? (m.auto ? '✈️ Piloto automático: encendido' : '✈️ Piloto automático: apagado') : '✈️ Piloto automático…') + '</button>' : '';
+    return '<div id="perfilBarra" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px">' +
+      (y ? '<button type="button" class="chip' + (enMarco() ? ' activo' : '') + '" data-perfil="marco">🤖 Marco</button><button type="button" class="chip' + (enMarco() ? '' : ' activo') + '" data-perfil="yo">👤 ' + esc(y.nombre) + '</button>' : '') +
+      piloto + '</div>';
+  }
+  function enlazarPerfil() {
+    app.querySelectorAll('[data-perfil]').forEach(function (b) { b.onclick = function () {
+      E.vistaPerfil = b.getAttribute('data-perfil'); try { localStorage.setItem('sc_perfil', E.vistaPerfil); } catch (e) {}
+      refrescarListaChats();
+    }; });
+    var bp = $('btnPiloto');
+    if (bp) bp.onclick = function () {
+      if (!E.marco) return;
+      bp.disabled = true;
+      api('marcoActivar', !E.marco.auto).then(function (r) { E.marco = r; refrescarListaChats(); toast(r.auto ? 'Piloto automático encendido: Marco contesta solo' : 'Piloto automático apagado'); })
+        .catch(function (e) { toast(e.message, 'error'); bp.disabled = false; });
+    };
+  }
+  function cargarMarco() {
+    if (E.marcoPedido || DEMO) return; E.marcoPedido = true;
+    api('marcoEstado').then(function (r) { E.marco = r; refrescarListaChats(); }).catch(function () { E.marcoPedido = false; });
+  }
+
   // ================================================================== CHATS
   function filaChat(c, sel) {
     var nueva = Number(c.sinLeer) > 0;
     return '<a class="fila' + (sel ? ' sel' : '') + (nueva ? ' nueva' : '') + '" href="#chat/' + esc(c.telefono) + '" data-tel="' + esc(c.telefono) + '">' + avatar(c) +
       '<div class="fila-info"><div class="fila-arriba"><span class="nombre">' + esc(nombreDe(c)) + tempIcono(c) + '</span><span class="hora">' + esc(horaCorta(c.ultimaHora)) + '</span></div>' +
       '<div class="fila-abajo"><span class="ultimo">' + esc(c.ultimoMsg) + '</span>' + (nueva ? '<span class="contador">' + Number(c.sinLeer) + '</span>' : '') + '</div>' +
-      '<span class="etapa t-' + esc(c.etapa) + '">' + esc(c.etapa) + (c.especialidad ? ' · ' + esc(c.especialidad) : '') + '</span></div></a>';
+      '<span class="etapa t-' + esc(c.etapa) + '">' + esc(c.etapa) + (c.especialidad ? ' · ' + esc(c.especialidad) : '') + (enMarco() && asesorDe(c) ? ' · 👤 ' + esc(NOMBRE_ASESOR[asesorDe(c)] || '') : '') + '</span></div></a>';
   }
   function chatsFiltrados() {
     var q = sinAcentos(E.buscaChat);
+    var mio = enMarco() ? null : yo().id;
     return E.chats.filter(function (c) {
+      if (mio && asesorDe(c) !== mio) return false;
       if (E.filtroChat === 'Sin leer' && !(Number(c.sinLeer) > 0)) return false;
       if (E.filtroChat === 'Interesados' && c.etapa !== 'Interesado') return false;
       if (q && sinAcentos(nombreDe(c) + ' ' + c.especialidad + ' ' + c.telefono).indexOf(q) === -1) return false;
@@ -380,10 +414,12 @@
     var l = chatsFiltrados();
     if (l.length) return l.map(function (c) { return filaChat(c, c.telefono === E.telSel); }).join('');
     if (E.buscaChat || E.filtroChat !== 'Todos') return '<p class="vacio">No hay chats con ese filtro.</p>';
+    if (!enMarco()) return '<p class="vacio">Todavía no tienes doctores asignados.<br>Marco te los pasa cuando agendan cita contigo.</p>';
     return '<p class="vacio">Todavía no hay chats.<br>Cuando mandes un lote o un doctor te escriba, aparecerá aquí.</p>';
   }
   function chipsChat(oscuro) {
-    var sinLeer = E.chats.filter(function (c) { return Number(c.sinLeer) > 0; }).length;
+    var mio = enMarco() ? null : yo().id;
+    var sinLeer = E.chats.filter(function (c) { return Number(c.sinLeer) > 0 && (!mio || asesorDe(c) === mio); }).length;
     return '<div class="chips' + (oscuro ? '' : ' claros') + '" id="chipsChat">' + ['Todos', 'Sin leer', 'Interesados'].map(function (f) {
       return '<button class="chip' + (E.filtroChat === f ? ' activo' : '') + '" data-filtro="' + f + '">' + f + (f === 'Sin leer' && sinLeer ? ' · ' + sinLeer : '') + '</button>';
     }).join('') + '</div>';
@@ -391,6 +427,7 @@
   function refrescarListaChats() {
     var l = $('listaChats'); if (l) l.innerHTML = listaChatsHtml();
     var ch = $('chipsChat'); if (ch) { var oscuro = !ch.classList.contains('claros'); ch.outerHTML = chipsChat(oscuro); enlazarChips(); }
+    var pb = $('perfilBarra'); if (pb) { pb.outerHTML = perfilBarra(); enlazarPerfil(); }
     var tb = app.querySelector('.tabs'); if (tb) tb.outerHTML = tabs();
     var nv = app.querySelector('.nav-escritorio'); if (nv) { var nb = document.createElement('div'); nb.innerHTML = barraEscritorio(); nv.outerHTML = nb.querySelector('.nav-escritorio').outerHTML; }
     actualizarTitulo();
@@ -411,21 +448,23 @@
       E.vista = clave;
       if (compu) {
         app.innerHTML = barraEscritorio() +
-          '<div class="marco"><section class="panel panel-lista"><div class="lista-cab"><label class="oculto" for="buscaChat">Buscar chat</label><input id="buscaChat" class="buscar borde" type="search" placeholder="Buscar chat" value="' + esc(E.buscaChat) + '">' + chipsChat(false) + '</div><div class="contenido" id="listaChats"></div></section>' +
+          '<div class="marco"><section class="panel panel-lista"><div class="lista-cab">' + perfilBarra() + '<label class="oculto" for="buscaChat">Buscar chat</label><input id="buscaChat" class="buscar borde" type="search" placeholder="Buscar chat" value="' + esc(E.buscaChat) + '">' + chipsChat(false) + '</div><div class="contenido" id="listaChats"></div></section>' +
           '<section class="panel panel-conv" id="panelConv"></section>' +
           '<aside class="panel panel-ficha" id="panelFicha"></aside></div>';
       } else if (tel) {
         app.innerHTML = '<div class="conv entra" id="panelConv"></div>';
       } else {
         app.innerHTML = '<header class="barra"><div class="barra-fila"><h1>Space Chat' + (DEMO ? ' <span class="badge demo">Demo</span>' : '') + '</h1><div class="barra-der"><button class="icono-btn" data-accion="notif" aria-label="Activar notificaciones">' + ICON.campana + '</button><button class="icono-btn" data-accion="salir" aria-label="Cerrar sesión">' + ICON.salir + '</button></div></div>' +
-          '<label class="oculto" for="buscaChat">Buscar chat</label><input id="buscaChat" class="buscar" type="search" placeholder="Buscar chat" value="' + esc(E.buscaChat) + '">' + chipsChat(true) + '</header>' +
+          perfilBarra() + '<label class="oculto" for="buscaChat">Buscar chat</label><input id="buscaChat" class="buscar" type="search" placeholder="Buscar chat" value="' + esc(E.buscaChat) + '">' + chipsChat(true) + '</header>' +
           '<div class="contenido blanco" id="listaChats"></div>' + tabs();
       }
       enlazarComunes();
       var bc = $('buscaChat');
       if (bc) bc.oninput = function () { E.buscaChat = bc.value; var l = $('listaChats'); if (l) l.innerHTML = listaChatsHtml(); };
       enlazarChips();
+      enlazarPerfil();
     }
+    cargarMarco();
     var l = $('listaChats');
     if (l) {
       l.innerHTML = listaChatsHtml();
@@ -1058,6 +1097,7 @@
     return '<div class="ficha-cab">' + avatar(c, 'grande') + '<div class="ficha-nombre">' + esc(nombreDe(c)) + '</div></div>' +
       '<div class="ficha-datos">' + datos.map(function (d) { return '<div class="fila-dato"><span>' + d[0] + '</span><b>' + esc(d[1]) + '</b></div>'; }).join('') + '</div>' +
       '<a class="boton-sec ancho" href="https://wa.me/' + esc(c.telefono) + '" target="_blank" rel="noopener">Abrir en WhatsApp</a>' +
+      '<span class="rotulo">Asesor</span><div class="chips claros" style="margin-bottom:10px">' + [['diego', 'Diego'], ['humberto', 'Humberto'], ['', 'Sin asignar']].map(function (a) { return '<button type="button" class="chip' + (asesorDe(c) === a[0] ? ' activo' : '') + '" data-asignar="' + a[0] + '">' + a[1] + '</button>'; }).join('') + '</div>' +
       fichaMarco(c) +
       '<label class="rotulo" for="notas">Notas</label><textarea id="notas" class="notas" placeholder="Ej. busca consultorio con vista, piso alto">' + esc(c.notas) + '</textarea>' +
       '<span class="nota" id="estadoNotas"></span>' +
@@ -1077,6 +1117,14 @@
     raiz.querySelector('[data-cambiar-etapa]').onclick = function () { elegirEtapa(c); };
     var b = raiz.querySelector('[data-baja]');
     if (b) b.onclick = function () { pedirBaja(c); };
+    raiz.querySelectorAll('[data-asignar]').forEach(function (b) { b.onclick = function () {
+      var id = b.getAttribute('data-asignar');
+      api('asignarAsesor', c.telefono, id).then(function (nc) {
+        c.perfil = nc.perfil;
+        raiz.querySelectorAll('[data-asignar]').forEach(function (x) { x.classList.toggle('activo', x.getAttribute('data-asignar') === id); });
+        toast(id ? 'Asignado a ' + NOMBRE_ASESOR[id] : 'Sin asesor'); refrescarListaChats();
+      }).catch(function (e) { toast(e.message, 'error'); });
+    }; });
     var mr = raiz.querySelector('[data-marco-retomar]');
     if (mr) mr.onclick = function () {
       mr.disabled = true;
@@ -1296,7 +1344,7 @@
         (u ? '<section class="tarjeta grid2"><div class="dato"><span>Entregados</span><b>' + u.entregados + ' de ' + u.enviados + '</b></div><div class="dato"><span>Dijeron Sí</span><b class="verde">' + u.si + '</b></div><div class="dato"><span>BAJA / bloqueos</span><b class="rojo">' + u.baja + '</b></div><div class="dato"><span>Sin respuesta</span><b>' + Math.max(0, u.entregados - u.si - u.baja) + '</b></div></section>' : '') +
         '<section class="tarjeta"><span class="rotulo">Según Meta</span><div class="fila-dato"><span>Calidad del número</span><b>' + esc(E.semaforo ? calidadNumero(s.calidadMeta) : '…') + '</b></div><div class="fila-dato"><span>Plantilla</span><b>' + esc(E.semaforo ? estadoPlantilla(s.estadoPlantilla) : '…') + '</b></div><div class="fila-dato"><span>Tope diario</span><b>' + (s.tope || 250) + '</b></div></section>' +
         (s.gasto ? '<section class="tarjeta"><span class="rotulo">Gasto en WhatsApp · ' + esc(s.gasto.mes) + '</span><div class="fila-dato"><span>Lo que llevas este mes</span><b>$' + Number(s.gasto.conIva).toFixed(2) + ' con IVA</b></div><div class="fila-dato"><span>Mensajes cobrados</span><b>' + s.gasto.plantillas + '</b></div><div class="fila-dato"><span>Mensajes gratis</span><b>' + (s.gasto.gratis || 0) + '</b></div><span class="nota">' + (s.gasto.fuente === 'Meta' ? 'Dato de Meta, actualizado ' + esc(horaCorta(s.gasto.hora)) + '. Meta lo cobra a tu tarjeta después, todo junto.' : 'Cálculo aproximado (Meta no contestó). Meta lo cobra a tu tarjeta después.') + '</span></section>' : '') +
-        (E.marco ? '<section class="tarjeta"><span class="rotulo">Marco (agente)</span><div class="fila-dato"><span>Contesta solo a los doctores</span><b class="' + (E.marco.auto ? 'verde' : '') + '">' + (E.marco.auto ? 'Prendido' : 'Apagado') + '</b></div>' + (E.marco.clave ? '' : '<span class="nota">Falta la clave de Gemini (GEMINI_KEY).</span>') + '<span class="nota">Contesta solo dentro de las 24 h gratis. Si piden cita, visita, cotización o apartar, te avisa y deja ese chat para ti.' + (E.marco.pausados ? ' Chats que te ha pasado: ' + E.marco.pausados + '.' : '') + '</span><button type="button" class="boton-sec chico-btn" id="btnMarcoAuto" style="margin-top:8px">' + (E.marco.auto ? 'Apagar a Marco' : 'Prender a Marco') + '</button></section>' : '') +
+        (E.marco ? '<section class="tarjeta"><span class="rotulo">Marco · piloto automático</span><div class="fila-dato"><span>Contesta solo a los doctores</span><b class="' + (E.marco.auto ? 'verde' : '') + '">' + (E.marco.auto ? 'Prendido' : 'Apagado') + '</b></div>' + (E.marco.clave ? '' : '<span class="nota">Falta la clave de Gemini (GEMINI_KEY).</span>') + '<span class="nota">Contesta solo dentro de las 24 h gratis. Si piden cita, visita, cotización o apartar, te avisa y deja ese chat para ti.' + (E.marco.pausados ? ' Chats que te ha pasado: ' + E.marco.pausados + '.' : '') + '</span><button type="button" class="boton-sec chico-btn" id="btnMarcoAuto" style="margin-top:8px">' + (E.marco.auto ? 'Apagar a Marco' : 'Prender a Marco') + '</button></section>' : '') +
         '<section class="tarjeta reglas"><span class="rotulo">Reglas (lotes chicos)</span><span><b class="verde">Verde</b> · 0 a 1 BAJA o bloqueo: seguir</span><span><b class="ambar">Amarillo</b> · 2 BAJA: pausar y cambiar mensaje</span><span><b class="rojo">Rojo</b> · 3 o más, o Meta marca la plantilla: parar</span></section>' +
         (s.lotes.length ? '<section class="panel solo-escritorio"><div class="rotulo" style="padding:14px 18px">Historial de lotes</div><div style="overflow-x:auto"><table class="tabla"><thead><tr><th>Lote</th><th>Fecha</th><th>Enviados</th><th>Entregados</th><th>Sí</th><th>BAJA</th><th>Semáforo</th></tr></thead><tbody>' +
           s.lotes.map(function (l) { return '<tr><td><b>' + l.lote + '</b></td><td>' + new Date(l.fecha).toLocaleDateString('es-MX') + '</td><td>' + l.enviados + '</td><td>' + l.entregados + '</td><td>' + l.si + '</td><td>' + l.baja + '</td><td><span class="badge ' + (l.semaforo === 'Verde' ? 'e-Interesado' : l.semaforo === 'Rojo' ? 'e-BAJA' : 'e-Cita') + '">' + l.semaforo + '</span></td></tr>'; }).join('') +
