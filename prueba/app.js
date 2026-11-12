@@ -919,11 +919,6 @@
       hueco = Math.max(0, Math.min(80, pantalla - window.innerHeight));
     }
     raiz.style.setProperty('--hueco', hueco + 'px');
-    if (/\/prueba\//.test(location.pathname)) {
-      var dg = document.getElementById('diag');
-      if (!dg) { dg = document.createElement('div'); dg.id = 'diag'; document.body.appendChild(dg); }
-      dg.textContent = 'v14 · ' + (instalada ? 'app' : 'safari') + ' · alto ' + window.innerHeight + '/' + pantalla + ' · arr ' + arriba + ' · ab ' + abajo + ' · hueco ' + hueco;
-    }
   };
   window.addEventListener('resize', medirHueco);
   window.addEventListener('orientationchange', function () { setTimeout(medirHueco, 300); });
