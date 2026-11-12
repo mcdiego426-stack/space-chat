@@ -362,6 +362,26 @@ html:has(#app > .conv) #extension-color { display: none; } /* no tapa los botone
 #app > .conv .escribir textarea:disabled { background: rgba(238, 241, 239, .8); }
 #app > .conv .enviar { box-shadow: 0 2px 8px rgba(11, 107, 79, .25); }
 
+/* Barra de escribir como WhatsApp: "+", caja, cámara y micrófono (con texto: enviar). */
+.extra-btn { width: 44px; height: 44px; border-radius: 22px; border: 1px solid var(--vidrio-borde); background: var(--vidrio); -webkit-backdrop-filter: var(--vidrio-blur); backdrop-filter: var(--vidrio-blur); box-shadow: var(--vidrio-sombra); color: var(--texto); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform var(--rapido); }
+.extra-btn:active:not(:disabled) { transform: scale(.9); }
+.extra-btn:disabled { opacity: .45; }
+.extra-btn.micro { background: #1F2622; color: #fff; border-color: #1F2622; }
+@media (max-width: 899px) {
+  .escribir:not(.con-texto) .enviar { display: none; }
+  .escribir.con-texto #btnCamara, .escribir.con-texto #btnMicro { display: none; }
+}
+/* Ventana del "+": Fotos, Cámara, Ubicación, Contacto, Documento. */
+.adjuntar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 8px; padding: 10px 0 6px; }
+.adjuntar-op { display: flex; flex-direction: column; align-items: center; gap: 8px; background: none; border: 0; font-size: 13px; color: var(--texto); }
+.adjuntar-op:active .adjuntar-ic { transform: scale(.92); }
+.adjuntar-ic { width: 62px; height: 62px; border-radius: 31px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(16, 24, 20, .12); transition: transform var(--rapido); }
+.adjuntar-ic.fotos { color: #2F7BEA; }
+.adjuntar-ic.camara { color: #3B4440; }
+.adjuntar-ic.ubicacion { color: #23B07D; }
+.adjuntar-ic.contacto { color: #6B7570; }
+.adjuntar-ic.documento { color: #3D8BF2; }
+
 /* iOS 26: una franja verde fija y tocable en la orilla de arriba le indica al iPhone de qué color pintar la barra de la hora
    (si no la encuentra, pone su difuminado). Es del mismo verde que el encabezado, así que no se nota. */
 #extension-color { position: fixed; top: 0; left: 0; right: 0; height: 12px; background: var(--verde); z-index: 30; }
