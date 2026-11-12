@@ -463,5 +463,5 @@ body:has(.login) #extension-color { background: #0D7A5A; }
 .marco-resumen .mr-texto { margin-top: 4px; }
 .marco-resumen .mr-datos { margin-top: 2px; opacity: .75; }
 
-/* Sin teclado: el encabezado del chat un poco más abajo para que no quede bajo lo nublado de arriba del iPhone */
-html:not(.con-teclado) #app > .conv .conv-barra { padding-top: calc(env(safe-area-inset-top) + 22px); }
+/* Encabezado del chat siempre a la misma altura (con o sin teclado, como WhatsApp) y fuera de lo nublado de arriba del iPhone */
+#app > .conv .conv-barra, .con-teclado #app > .conv .conv-barra { padding-top: calc(env(safe-area-inset-top) + 22px); }
