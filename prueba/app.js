@@ -787,7 +787,7 @@
     });
   }
   // ---------- Mandar ubicación (como WhatsApp): mapa, "mi ubicación actual", lugares cercanos y buscador.
-  // Mapa: Leaflet + mapa de CARTO/OpenStreetMap. Lugares: OpenStreetMap (Overpass y Nominatim). Todo gratis, sin claves.
+  // Mapa: Leaflet + mapa de OpenStreetMap. Lugares: OpenStreetMap (Overpass y Nominatim). Todo gratis, sin claves.
   function cargarMapa(listo, mal) {
     if (window.L) return listo();
     var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
@@ -800,16 +800,36 @@
     var calle = [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' ');
     return [calle, t['addr:suburb'] || t['addr:neighbourhood'], t['addr:city']].filter(Boolean).join(', ');
   }
+  // Pide a la vez a varios servidores de OpenStreetMap; se usa el primero que conteste (a veces alguno está saturado).
+  function conTiempo(url, opciones, ms) {
+    var c = window.AbortController ? new AbortController() : null;
+    if (c) { opciones = opciones || {}; opciones.signal = c.signal; setTimeout(function () { c.abort(); }, ms); }
+    return fetch(url, opciones).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  }
+  function primeroQueConteste(promesas) {
+    return new Promise(function (ok, mal) {
+      var fallas = 0;
+      promesas.forEach(function (p) { p.then(function (l) { if (l && l.length) ok(l); else if (++fallas === promesas.length) ok([]); }, function () { if (++fallas === promesas.length) mal(new Error('sin lugares')); }); });
+    });
+  }
   function lugaresCercanos(lat, lng) {
-    var q = '[out:json][timeout:10];(node(around:400,' + lat + ',' + lng + ')[name][~"^(amenity|shop|office|healthcare|tourism|leisure)$"~"."];way(around:400,' + lat + ',' + lng + ')[name][~"^(amenity|shop|office|healthcare|tourism|leisure)$"~"."];);out center 40;';
-    return fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        return (j.elements || []).map(function (e) {
-          var la = e.lat || (e.center && e.center.lat), lo = e.lon || (e.center && e.center.lon);
-          return { nombre: e.tags.name, direccion: direccionOSM(e.tags), lat: la, lng: lo, dist: distancia(lat, lng, la, lo) };
-        }).filter(function (x) { return x.lat; }).sort(function (a, b) { return a.dist - b.dist; }).slice(0, 25);
+    var a = '(around:400,' + lat + ',' + lng + ')';
+    var q = '[out:json][timeout:8];(nwr' + a + '[amenity][name];nwr' + a + '[shop][name];nwr' + a + '[office][name];nwr' + a + '[healthcare][name];nwr' + a + '[leisure][name];nwr' + a + '[tourism][name];);out center 40;';
+    function arreglar(l) { return l.filter(function (x) { return x.lat && x.nombre; }).map(function (x) { x.dist = distancia(lat, lng, x.lat, x.lng); return x; }).sort(function (a, b) { return a.dist - b.dist; }).slice(0, 25); }
+    var overpass = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'].map(function (u) {
+      return conTiempo(u, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, 9000).then(function (j) {
+        return arreglar((j.elements || []).map(function (e) {
+          return { nombre: e.tags && e.tags.name, direccion: direccionOSM(e.tags), lat: e.lat || (e.center && e.center.lat), lng: e.lon || (e.center && e.center.lon) };
+        }));
       });
+    });
+    var photon = conTiempo('https://photon.komoot.io/reverse?lat=' + lat + '&lon=' + lng + '&limit=25&radius=0.5', {}, 9000).then(function (j) {
+      return arreglar((j.features || []).filter(function (f) { return /amenity|shop|office|healthcare|leisure|tourism/.test(f.properties.osm_key); }).map(function (f) {
+        var p = f.properties;
+        return { nombre: p.name, direccion: [[p.street, p.housenumber].filter(Boolean).join(' '), p.district, p.city].filter(Boolean).join(', '), lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] };
+      }));
+    });
+    return primeroQueConteste(overpass.concat([photon]));
   }
   function buscarLugares(texto, lat, lng) {
     var u = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=10&countrycodes=mx&accept-language=es&q=' + encodeURIComponent(texto);
@@ -852,7 +872,7 @@
     function cercanosDe(lat, lng) {
       var n = ++buscando; lista.innerHTML = '<p class="nota">Buscando lugares…</p>';
       lugaresCercanos(lat, lng).then(function (l) { if (n === buscando) pintarLugares(l, 'No encontré lugares con nombre cerca.'); })
-        .catch(function () { if (n === buscando) pintarLugares([], 'No se pudieron cargar los lugares cercanos.'); });
+        .catch(function () { if (n === buscando) pintarLugares([], 'Ahorita no cargaron los lugares cercanos. Puedes buscar uno arriba o mandar tu ubicación actual.'); });
     }
     function ubicarme() {
       h.querySelector('#precUbic').textContent = 'Buscando tu ubicación…';
@@ -875,7 +895,7 @@
       if (!document.body.contains(h)) return;
       var ini = yo ? [yo.lat, yo.lng] : [20.6736, -103.344];
       mapa = L.map('mapaUbic', { zoomControl: false, attributionControl: true }).setView(ini, yo ? 17 : 12);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO' }).addTo(mapa);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapa);
       punto = L.circleMarker(ini, { radius: 9, color: '#fff', weight: 3, fillColor: '#23B07D', fillOpacity: 1 }).addTo(mapa);
       mapa.on('dragstart', function () { movida = true; h.classList.add('movida'); actualizarPrimera(); });
       mapa.on('moveend', function () { if (movida) { var c = mapa.getCenter(); cercanosDe(+c.lat.toFixed(6), +c.lng.toFixed(6)); } });
