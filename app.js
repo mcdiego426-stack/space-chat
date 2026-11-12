@@ -1107,7 +1107,7 @@
     return '<div class="ficha-cab">' + avatar(c, 'grande') + '<div class="ficha-nombre">' + esc(nombreDe(c)) + '</div></div>' +
       '<div class="ficha-datos">' + datos.map(function (d) { return '<div class="fila-dato"><span>' + d[0] + '</span><b>' + esc(d[1]) + '</b></div>'; }).join('') + '</div>' +
       '<a class="boton-sec ancho" href="https://wa.me/' + esc(c.telefono) + '" target="_blank" rel="noopener">Abrir en WhatsApp</a>' +
-      '<span class="rotulo">Asesor</span><div class="chips claros" style="margin-bottom:10px">' + [['diego', 'Diego'], ['humberto', 'Humberto'], ['', 'Sin asignar']].map(function (a) { return '<button type="button" class="chip' + (asesorDe(c) === a[0] ? ' activo' : '') + '" data-asignar="' + a[0] + '">' + a[1] + '</button>'; }).join('') + '</div>' +
+      '<span class="rotulo">Asesor</span><div class="chips claros" style="margin-bottom:10px;flex-shrink:0;flex-wrap:wrap;min-height:34px">' + [['diego', 'Diego'], ['humberto', 'Humberto'], ['', 'Sin asignar']].map(function (a) { return '<button type="button" class="chip' + (asesorDe(c) === a[0] ? ' activo' : '') + '" data-asignar="' + a[0] + '">' + a[1] + '</button>'; }).join('') + '</div>' +
       fichaMarco(c) +
       '<label class="rotulo" for="notas">Notas</label><textarea id="notas" class="notas" placeholder="Ej. busca consultorio con vista, piso alto">' + esc(c.notas) + '</textarea>' +
       '<span class="nota" id="estadoNotas"></span>' +
