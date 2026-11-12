@@ -902,6 +902,33 @@
     }, { passive: true });
   }
 
+  // iPhone (iOS 26) con la app en la pantalla de inicio: a veces el iPhone deja la app más corta que la pantalla
+  // y abajo queda una franja sin usar. Se mide ese hueco para que las pestañas no dejen espacio de más.
+  var medirHueco = function () {
+    var raiz = document.documentElement;
+    var sonda = document.createElement('div');
+    sonda.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;visibility:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)';
+    document.body.appendChild(sonda);
+    var cs = getComputedStyle(sonda), arriba = parseFloat(cs.paddingTop) || 0, abajo = parseFloat(cs.paddingBottom) || 0;
+    sonda.remove();
+    var instalada = window.navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    var horizontal = window.matchMedia && matchMedia('(orientation: landscape)').matches;
+    var pantalla = horizontal ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+    var hueco = 0;
+    if (instalada && arriba > 0 && !document.documentElement.classList.contains('con-teclado')) {
+      hueco = Math.max(0, Math.min(80, pantalla - window.innerHeight));
+    }
+    raiz.style.setProperty('--hueco', hueco + 'px');
+    if (/\/prueba\//.test(location.pathname)) {
+      var dg = document.getElementById('diag');
+      if (!dg) { dg = document.createElement('div'); dg.id = 'diag'; document.body.appendChild(dg); }
+      dg.textContent = 'v10 · ' + (instalada ? 'app' : 'safari') + ' · alto ' + window.innerHeight + '/' + pantalla + ' · arr ' + arriba + ' · ab ' + abajo + ' · hueco ' + hueco;
+    }
+  };
+  window.addEventListener('resize', medirHueco);
+  window.addEventListener('orientationchange', function () { setTimeout(medirHueco, 300); });
+  medirHueco(); setTimeout(medirHueco, 500);
+
   // Teclado en iPhone.
   // - Con el teclado abierto, la app ocupa solo el espacio visible arriba de él.
   // - Si estabas viendo lo último del chat, se queda pegado al último mensaje mientras el teclado sube o baja.
