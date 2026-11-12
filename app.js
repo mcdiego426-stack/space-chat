@@ -343,9 +343,16 @@
   function marcoResumen(c) {
     var p = perfilMarco(c); if (!p || !(p.resumen || p.temperatura)) return '';
     var datos = [p.especialidad, p.uso, p.metros, p.presupuesto, p.formaPago, p.cuando].filter(Boolean).join(' · ');
-    return '<div class="ventana marco-resumen" style="display:block;line-height:1.35"><b>' + (TEMP[p.temperatura] || 'Marco') + '</b>' + (p.pausa ? ' · lo atiendes tú' : '') +
-      (p.resumen ? '<br>' + esc(p.resumen) : '') + (datos ? '<br><span style="opacity:.75">' + esc(datos) + '</span>' : '') + (p.cita ? '<br>📅 ' + esc(p.cita) : '') + '</div>';
+    // Una sola línea; al picarla se abre el resumen (se recuerda abierto o cerrado).
+    return '<details class="ventana marco-resumen"' + (E.resumenAbierto ? ' open' : '') + '><summary><b>' + (TEMP[p.temperatura] || 'Marco') + '</b>' + (p.pausa ? ' · lo atiendes tú' : '') + ' · <u>' + (E.resumenAbierto ? 'ocultar' : 'ver resumen') + '</u></summary>' +
+      (p.resumen ? '<div class="mr-texto">' + esc(p.resumen) + '</div>' : '') + (datos ? '<div class="mr-datos">' + esc(datos) + '</div>' : '') + (p.cita ? '<div class="mr-texto">📅 ' + esc(p.cita) + '</div>' : '') + '</details>';
   }
+  document.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (!d.classList || !d.classList.contains('marco-resumen')) return;
+    E.resumenAbierto = d.open;
+    var u = d.querySelector('summary u'); if (u) u.textContent = d.open ? 'ocultar' : 'ver resumen';
+  }, true);
   function fichaMarco(c) {
     var p = perfilMarco(c); if (!p) return '';
     var filas = [['Interés', TEMP[p.temperatura]], ['Uso', p.uso], ['Metros', p.metros], ['Presupuesto', p.presupuesto], ['Pago', p.formaPago], ['Para cuándo', p.cuando], ['Cita', p.cita]].filter(function (d) { return d[1]; });
@@ -1483,8 +1490,14 @@
     document.addEventListener('scroll', function (e) {
       if (e.target && e.target.id === 'mensajes' && Date.now() > fijarHasta) pegadoAlFinal = distanciaAlFinal(e.target) < 60;
     }, true);
+    // El iPhone también recorre hacia arriba la app y el chat (aunque no deslizan) para enseñar la caja de escribir,
+    // y eso se llevaba el encabezado: se regresan siempre a su lugar.
+    document.addEventListener('scroll', function (e) {
+      var x = e.target;
+      if (x && (x === app || (x.classList && x.classList.contains('conv'))) && x.scrollTop) x.scrollTop = 0;
+    }, true);
     document.addEventListener('focusin', function (e) {
-      if (e.target && e.target.id === 'msg') { pegadoAlFinal = true; fijarAlFinal(900); }
+      if (e.target && e.target.id === 'msg') { pegadoAlFinal = true; fijarAlFinal(900); app.scrollTop = 0; var cv = app.querySelector('.conv'); if (cv) cv.scrollTop = 0; }
     });
     document.addEventListener('focusout', function () {
       setTimeout(function () { if (!tecladoAbierto) window.scrollTo(0, 0); }, 120);
