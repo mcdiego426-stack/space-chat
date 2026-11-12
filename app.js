@@ -364,7 +364,7 @@
   function perfilBarra() {
     var y = yo(), m = E.marco;
     var piloto = enMarco() ? '<button type="button" class="chip' + (m && m.auto ? ' activo' : '') + '" id="btnPiloto" title="Marco contesta solo a los doctores">' + (m ? (m.auto ? '✈️ Piloto automático: encendido' : '✈️ Piloto automático: apagado') : '✈️ Piloto automático…') + '</button>' : '';
-    return '<div id="perfilBarra" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px">' +
+    return '<div id="perfilBarra" class="chips' + (esCompu() ? ' claros' : '') + '" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px">' +
       (y ? '<button type="button" class="chip' + (enMarco() ? ' activo' : '') + '" data-perfil="marco">🤖 Marco</button><button type="button" class="chip' + (enMarco() ? '' : ' activo') + '" data-perfil="yo">👤 ' + esc(y.nombre) + '</button>' : '') +
       piloto + '</div>';
   }
