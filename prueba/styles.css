@@ -39,6 +39,8 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 /* Con el teclado abierto: la app ocupa solo lo visible arriba del teclado y lo sigue. */
 .con-teclado #app { position: fixed; left: 0; right: 0; top: 0; height: var(--vv-alto, 100dvh); transform: translateY(var(--vv-arriba, 0px)); }
 .con-teclado .redactar { padding-bottom: 8px; }
+#bajo-teclado { display: none; }
+.con-teclado #bajo-teclado { display: block; position: fixed; left: 0; right: 0; top: calc(var(--vv-arriba, 0px) + var(--vv-alto, 100dvh)); height: 100vh; background: #F7F8F7; }
 .con-teclado .hoja-fondo { top: var(--vv-arriba, 0px); bottom: auto; height: var(--vv-alto, 100dvh); }
 .barra { position: sticky; top: 0; z-index: 5; background: var(--verde); color: #fff; padding: calc(env(safe-area-inset-top) + 14px) 16px 12px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
 .barra-fila { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -136,6 +138,12 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .mensajes { flex: 1; overflow-y: auto; padding: 12px 10px 16px; display: flex; flex-direction: column; gap: 4px; overscroll-behavior: contain; min-height: 0; }
 .globo { max-width: min(82%, 560px); padding: 7px 10px 6px; border-radius: 12px; font-size: 15px; line-height: 1.4; display: flex; flex-direction: column; gap: 2px; word-wrap: break-word; box-shadow: 0 1px 1px rgba(0, 0, 0, .06); margin-top: 4px; animation: aparecer .18s ease; }
 .globo .txt { white-space: pre-wrap; }
+/* Como en WhatsApp: si hay pocos mensajes, se acomodan abajo, junto a la caja de escribir. */
+.mensajes > :first-child { margin-top: auto; }
+/* Plantilla: se ven las primeras líneas y se puede abrir completa. */
+.globo .txt.plegado { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.globo.abierta .txt.plegado { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.ver-plantilla { align-self: flex-start; background: none; border: 0; padding: 4px 0 0; color: var(--verde); font-weight: 600; font-size: 14px; }
 @keyframes aparecer { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .globo.salida { align-self: flex-end; background: var(--burbuja); border-bottom-right-radius: 4px; }
 .globo.entrada { align-self: flex-start; background: #fff; border-bottom-left-radius: 4px; }
@@ -155,7 +163,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .cargando-msgs span:nth-child(2) { animation-delay: .15s; }
 .cargando-msgs span:nth-child(3) { animation-delay: .3s; }
 @keyframes punto { 0%, 80%, 100% { transform: scale(.6); opacity: .5; } 40% { transform: scale(1); opacity: 1; } }
-.redactar { background: #F7F8F7; padding: 8px 8px max(8px, calc(env(safe-area-inset-bottom) - 14px - var(--hueco, 0px))); border-top: 1px solid #E3E8E5; flex-shrink: 0; }
+.redactar { background: #F7F8F7; padding: 8px 12px max(8px, calc(env(safe-area-inset-bottom) - 14px - var(--hueco, 0px))); border-top: 1px solid #E3E8E5; flex-shrink: 0; }
 .escribir { display: flex; gap: 8px; align-items: flex-end; }
 .escribir textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 120px; border-radius: 22px; border: 1px solid #D5DDD9; padding: 11px 16px; font-size: 16px; line-height: 1.35; resize: none; background: #fff; outline: none; transition: border-color var(--rapido); }
 .escribir textarea:focus { border-color: var(--borde); }
@@ -194,7 +202,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .ficha-datos { display: flex; flex-direction: column; gap: 9px; padding: 12px 0; border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea); }
 .fila-dato { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; }
 .fila-dato > span:first-child { color: var(--gris); }
-.notas { min-height: 100px; border-radius: 12px; border: 1px solid #D5DDD9; padding: 10px 12px; resize: vertical; font-size: 16px; line-height: 1.4; outline: none; }
+.notas { min-height: 100px; border-radius: 12px; border: 1px solid #D5DDD9; padding: 10px 12px; resize: none; font-size: 16px; line-height: 1.4; outline: none; }
 .notas:focus { border-color: var(--verde); }
 
 /* ---------- Tarjetas (campañas / semáforo) ---------- */
