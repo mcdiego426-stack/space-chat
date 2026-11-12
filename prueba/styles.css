@@ -59,7 +59,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .chips-barra .chips.claros { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
 .contenido { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; min-height: 0; }
 .contenido.blanco { background: #fff; }
-.tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #E3E8E5; background: rgba(255, 255, 255, .97); padding: 2px 0 max(4px, calc(env(safe-area-inset-bottom) - 18px - var(--hueco, 0px))); flex-shrink: 0; }
+.tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex-shrink: 0; }
 .tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 4px; text-decoration: none; color: var(--gris); font-size: 11.5px; font-weight: 500; position: relative; transition: color var(--rapido); }
 .tab svg { transition: transform var(--rapido); }
 .tab:active svg { transform: scale(.88); }
@@ -323,24 +323,44 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 }
 
 /* iOS 26: el encabezado verde fijo arriba hace que el iPhone pinte la barra de la hora de verde en vez de difuminarla. */
+/* ---------- Efecto vidrio (iOS 26): solo en lo que flota encima del contenido ---------- */
+:root { --vidrio: rgba(255, 255, 255, .62); --vidrio-borde: rgba(255, 255, 255, .7); --vidrio-sombra: 0 2px 10px rgba(16, 24, 20, .12); --vidrio-blur: blur(20px) saturate(180%); }
+
+/* Pestañas: pastilla de vidrio que flota; la lista pasa por detrás. */
+#app { position: relative; }
+.tabs { position: absolute; left: 12px; right: 12px; bottom: max(8px, calc(env(safe-area-inset-bottom) - 12px)); z-index: 7; border: 1px solid var(--vidrio-borde); border-radius: 32px; background: var(--vidrio); -webkit-backdrop-filter: var(--vidrio-blur); backdrop-filter: var(--vidrio-blur); box-shadow: var(--vidrio-sombra); padding: 4px; }
+.tab { border-radius: 26px; padding: 6px 0 5px; }
+.tab.activo { background: rgba(11, 107, 79, .12); }
+#app:has(> .tabs) .contenido { padding-bottom: calc(max(8px, env(safe-area-inset-bottom) - 12px) + 76px); }
+
+/* Ventanas que suben desde abajo y avisos: vidrio. */
+.hoja { background: rgba(255, 255, 255, .84); -webkit-backdrop-filter: var(--vidrio-blur); backdrop-filter: var(--vidrio-blur); }
+#toast { background: rgba(31, 38, 34, .78); -webkit-backdrop-filter: var(--vidrio-blur); backdrop-filter: var(--vidrio-blur); }
+#toast.error { background: rgba(140, 29, 20, .85); }
+
 /* ---------- Chat abierto en el celular: estilo WhatsApp ---------- */
-/* Encabezado claro con botones redondos que flotan sobre el chat. */
 html:has(#app > .conv), html:has(#app > .conv) body { background: var(--chat); }
-html:has(#app > .conv) #extension-color, html:has(#app > .conv) #bajo-teclado { background: var(--chat); }
-#app > .conv .conv-barra { background: var(--chat); color: var(--texto); padding: calc(env(safe-area-inset-top) + 6px) 10px 6px; gap: 8px; }
-#app > .conv .conv-barra .icono-btn { width: 44px; height: 44px; border-radius: 22px; background: rgba(255, 255, 255, .92); color: var(--texto); box-shadow: 0 1px 4px rgba(16, 24, 20, .14); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
-#app > .conv .conv-barra .icono-btn:active { background: #E9EDEB; }
-#app > .conv .conv-quien { flex: 0 1 auto; margin-right: auto; background: rgba(255, 255, 255, .92); color: var(--texto); border-radius: 26px; padding: 4px 16px 4px 4px; box-shadow: 0 1px 4px rgba(16, 24, 20, .14); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
-#app > .conv .conv-quien:active { background: #E9EDEB; }
+html:has(#app > .conv) #bajo-teclado { background: var(--chat); }
+html:has(#app > .conv) #extension-color { display: none; } /* no tapa los botones de arriba */
+#app > .conv { position: relative; }
+/* Encabezado y aviso flotan arriba; los mensajes pasan por detrás. */
+#app > .conv .conv-arriba { position: absolute; top: 0; left: 0; right: 0; z-index: 6; background: linear-gradient(to bottom, rgba(236, 239, 234, .92) 0%, rgba(236, 239, 234, .6) 60%, rgba(236, 239, 234, 0) 100%); padding-bottom: 8px; }
+#app > .conv .conv-barra { position: static; background: none; color: var(--texto); padding: calc(env(safe-area-inset-top) + 8px) 10px 6px; gap: 8px; }
+#app > .conv .conv-barra .icono-btn, #app > .conv .conv-quien { background: var(--vidrio); border: 1px solid var(--vidrio-borde); box-shadow: var(--vidrio-sombra); -webkit-backdrop-filter: var(--vidrio-blur); backdrop-filter: var(--vidrio-blur); color: var(--texto); }
+#app > .conv .conv-barra .icono-btn { width: 44px; height: 44px; border-radius: 22px; }
+#app > .conv .conv-quien { flex: 0 1 auto; margin-right: auto; border-radius: 26px; padding: 3px 16px 3px 3px; }
+#app > .conv .conv-barra .icono-btn:active, #app > .conv .conv-quien:active { background: rgba(255, 255, 255, .9); }
 #app > .conv .conv-nombre { color: var(--texto); }
 #app > .conv .conv-sub { color: var(--gris); }
-#app > .conv .ventana { margin: 2px 10px 0; border-radius: 12px; border: 1px solid #F1DDB3; padding: 7px 12px; }
-#app > .conv .ventana.cerrada { border-color: #F5C2BE; }
-/* Barra de escribir: caja redonda que flota sobre el chat, con el botón de enviar al lado. */
-#app > .conv .redactar { background: transparent; border-top: 0; padding-top: 6px; }
-#app > .conv .escribir textarea { border-color: transparent; box-shadow: 0 1px 4px rgba(16, 24, 20, .14); }
+#app > .conv .ventana { margin: 2px 10px 0; border-radius: 14px; border: 1px solid rgba(241, 221, 179, .9); padding: 7px 12px; background: rgba(255, 247, 230, .78); -webkit-backdrop-filter: var(--vidrio-blur); backdrop-filter: var(--vidrio-blur); }
+#app > .conv .ventana.cerrada { border-color: rgba(245, 194, 190, .9); background: rgba(253, 236, 235, .8); }
+#app > .conv .mensajes { padding-top: calc(var(--arriba, 110px) + 6px); padding-bottom: calc(var(--abajo, 70px) + 8px); }
+/* Barra de escribir: flota abajo; la caja es de vidrio y el botón de enviar verde. */
+#app > .conv .redactar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; border-top: 0; padding-top: 10px; background: linear-gradient(to top, rgba(236, 239, 234, .9) 0%, rgba(236, 239, 234, .55) 60%, rgba(236, 239, 234, 0) 100%); }
+#app > .conv .escribir textarea { background: rgba(255, 255, 255, .72); border: 1px solid var(--vidrio-borde); box-shadow: var(--vidrio-sombra); -webkit-backdrop-filter: var(--vidrio-blur); backdrop-filter: var(--vidrio-blur); }
 #app > .conv .escribir textarea:focus { border-color: var(--borde); }
-#app > .conv .enviar { box-shadow: 0 1px 4px rgba(16, 24, 20, .18); }
+#app > .conv .escribir textarea:disabled { background: rgba(238, 241, 239, .8); }
+#app > .conv .enviar { box-shadow: 0 2px 8px rgba(11, 107, 79, .25); }
 
 /* iOS 26: una franja verde fija y tocable en la orilla de arriba le indica al iPhone de qué color pintar la barra de la hora
    (si no la encuentra, pone su difuminado). Es del mismo verde que el encabezado, así que no se nota. */
