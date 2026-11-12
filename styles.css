@@ -344,7 +344,7 @@ html:has(#app > .conv) #bajo-teclado { background: var(--chat); }
 html:has(#app > .conv) #extension-color { display: none; } /* no tapa los botones de arriba */
 #app > .conv { position: relative; }
 /* Encabezado y aviso flotan arriba; los mensajes pasan por detrás. */
-#app > .conv .conv-arriba { position: absolute; top: 0; left: 0; right: 0; z-index: 6; background: linear-gradient(to bottom, rgba(236, 239, 234, .92) 0%, rgba(236, 239, 234, .6) 60%, rgba(236, 239, 234, 0) 100%); padding-bottom: 8px; }
+#app > .conv .conv-arriba { position: absolute; top: 0; left: 0; right: 0; z-index: 6; background: linear-gradient(to bottom, var(--chat) 0%, var(--chat) calc(100% - 14px), rgba(236, 239, 234, 0) 100%); padding-bottom: 14px; }
 #app > .conv .conv-barra { position: static; background: none; color: var(--texto); padding: calc(env(safe-area-inset-top) + 8px) 10px 6px; gap: 8px; }
 #app > .conv .conv-barra .icono-btn, #app > .conv .conv-quien { background: var(--vidrio); border: 1px solid var(--vidrio-borde); box-shadow: var(--vidrio-sombra); -webkit-backdrop-filter: var(--vidrio-blur); backdrop-filter: var(--vidrio-blur); color: var(--texto); }
 #app > .conv .conv-barra .icono-btn { width: 44px; height: 44px; border-radius: 22px; }
@@ -352,8 +352,8 @@ html:has(#app > .conv) #extension-color { display: none; } /* no tapa los botone
 #app > .conv .conv-barra .icono-btn:active, #app > .conv .conv-quien:active { background: rgba(255, 255, 255, .9); }
 #app > .conv .conv-nombre { color: var(--texto); }
 #app > .conv .conv-sub { color: var(--gris); }
-#app > .conv .ventana { margin: 2px 10px 0; border-radius: 14px; border: 1px solid rgba(241, 221, 179, .9); padding: 7px 12px; background: rgba(255, 247, 230, .78); -webkit-backdrop-filter: var(--vidrio-blur); backdrop-filter: var(--vidrio-blur); }
-#app > .conv .ventana.cerrada { border-color: rgba(245, 194, 190, .9); background: rgba(253, 236, 235, .8); }
+#app > .conv .ventana { margin: 4px 10px 0; border-radius: 14px; border: 1px solid #F1DDB3; padding: 7px 12px; background: #FFF7E6; }
+#app > .conv .ventana.cerrada { border-color: #F5C2BE; background: #FDECEB; }
 #app > .conv .mensajes { padding-top: calc(var(--arriba, 110px) + 6px); padding-bottom: calc(var(--abajo, 70px) + 8px); }
 /* Barra de escribir: flota abajo; la caja es de vidrio y el botón de enviar verde. */
 #app > .conv .redactar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; border-top: 0; padding-top: 10px; background: linear-gradient(to top, rgba(236, 239, 234, .9) 0%, rgba(236, 239, 234, .55) 60%, rgba(236, 239, 234, 0) 100%); }
@@ -454,3 +454,11 @@ html:has(#app > .conv) #extension-color { display: none; } /* no tapa los botone
 #extension-color { position: fixed; top: 0; left: 0; right: 0; height: 12px; background: var(--verde); z-index: 30; }
 body:has(.login) #extension-color { background: #0D7A5A; }
 @media (min-width: 900px) { #extension-color { display: none; } }
+
+/* Resumen de Marco: una línea que se abre al picarla */
+.marco-resumen { display: block; line-height: 1.35; }
+.marco-resumen summary { list-style: none; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.marco-resumen summary::-webkit-details-marker { display: none; }
+.marco-resumen summary u { opacity: .75; }
+.marco-resumen .mr-texto { margin-top: 4px; }
+.marco-resumen .mr-datos { margin-top: 2px; opacity: .75; }
