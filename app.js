@@ -1525,18 +1525,24 @@
     // antes de que el teclado suba. Así el iPhone ya no empuja la pantalla y el encabezado no se mueve.
     var altoTeclado = 0;
     try { altoTeclado = Number(localStorage.getItem('sc_teclado')) || 0; } catch (e) {}
-    var anticipar = function (e) {
+    // Se hace al SOLTAR el dedo (un toque, no al deslizar): se acomoda la app y la misma app abre el teclado,
+    // para que el iPhone no pierda el toque al moverse la caja.
+    var tocoY = 0, movio = false;
+    document.addEventListener('touchstart', function (e) { if (e.target && e.target.id === 'msg') { movio = false; tocoY = e.touches[0].clientY; } }, { capture: true, passive: true });
+    document.addEventListener('touchmove', function (e) { if (Math.abs(e.touches[0].clientY - tocoY) > 8) movio = true; }, { capture: true, passive: true });
+    document.addEventListener('touchend', function (e) {
       var x = e.target;
-      if (!x || x.id !== 'msg' || x.disabled || tecladoAbierto || !altoTeclado) return;
+      if (!x || x.id !== 'msg' || x.disabled || movio || tecladoAbierto || document.activeElement === x || !altoTeclado) return;
+      e.preventDefault();
       var base = altoBase || window.innerHeight;
       raiz.style.setProperty('--vv-alto', Math.round(base - altoTeclado) + 'px');
       raiz.style.setProperty('--vv-arriba', '0px');
       raiz.classList.add('con-teclado');
       pegadoAlFinal = true; alFinal();
-      // Si al final no se abrió el teclado (solo deslizó), regresa como estaba.
-      setTimeout(function () { if (!tecladoAbierto && document.activeElement !== x) raiz.classList.remove('con-teclado'); }, 900);
-    };
-    document.addEventListener('touchstart', anticipar, { capture: true, passive: true });
+      try { x.focus({ preventScroll: true }); } catch (er) { x.focus(); }
+      // Si por algo no se abrió el teclado, regresa como estaba.
+      setTimeout(function () { if (!tecladoAbierto && document.activeElement !== x) raiz.classList.remove('con-teclado'); }, 1200);
+    }, { capture: true, passive: false });
     var ajustarAlto = function () {
       altoBase = Math.max(altoBase, vv.height, tecladoAbierto ? 0 : window.innerHeight);
       var ae = document.activeElement, foco = !!ae && /^(TEXTAREA|INPUT)$/.test(ae.tagName);
