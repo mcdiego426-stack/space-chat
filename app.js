@@ -1502,6 +1502,20 @@
     document.addEventListener('focusout', function () {
       setTimeout(function () { if (!tecladoAbierto) window.scrollTo(0, 0); }, 120);
     });
+    // Diagnóstico temporal: al abrir el teclado en un chat, guarda en la Bitácora dónde quedó cada pieza.
+    var diagN = 0;
+    var diag = function (momento) {
+      if (diagN >= 6 || DEMO || !E.sesion) return; diagN++;
+      try {
+        var r = function (sel) { var x = document.querySelector(sel); if (!x) return null; var b = x.getBoundingClientRect(); return Math.round(b.top) + '/' + Math.round(b.height); };
+        var cv = app.querySelector('.conv'), mm = $('mensajes');
+        var d = { m: momento, v: 'v8', sy: Math.round(window.scrollY), vvT: Math.round(vv.offsetTop), vvH: Math.round(vv.height), iH: window.innerHeight, sH: screen.height,
+          appT: app.scrollTop, convT: cv ? cv.scrollTop : null, docT: document.documentElement.scrollTop, bodyT: document.body.scrollTop,
+          app: r('#app'), arriba: r('.conv-arriba'), barra: r('.conv-barra'), msgs: r('#mensajes'), redactar: r('.redactar'),
+          cls: document.documentElement.className, est: !!window.navigator.standalone, ua: navigator.userAgent.replace(/^.*(iPhone OS [0-9_]+).*$/, '$1') };
+        api('diag', JSON.stringify(d)).catch(function () {});
+      } catch (e) {}
+    };
     var ajustarAlto = function () {
       var abierto = (window.innerHeight - vv.height) > 80;
       if (abierto) {
@@ -1514,7 +1528,8 @@
         // El iPhone empuja la página hacia arriba al abrir el teclado y escondía el encabezado del chat:
         // se regresa a su lugar (una vez, cuando termina de abrir; no a cada rato, para que no tiemble).
         window.scrollTo(0, 0);
-        if (abierto) { setTimeout(function () { window.scrollTo(0, 0); ajustarAlto(); }, 60); setTimeout(function () { window.scrollTo(0, 0); ajustarAlto(); }, 350); }
+        if (abierto) { setTimeout(function () { window.scrollTo(0, 0); ajustarAlto(); }, 60); setTimeout(function () { window.scrollTo(0, 0); ajustarAlto(); }, 350); if ($('mensajes')) { setTimeout(function () { diag('abierto+0.8s'); }, 800); setTimeout(function () { diag('abierto+2s'); }, 2000); } }
+        else if ($('mensajes')) setTimeout(function () { diag('cerrado'); }, 600);
         fijarAlFinal(700);
       } else if (pegadoAlFinal) alFinal();
     };
