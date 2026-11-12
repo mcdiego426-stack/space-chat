@@ -363,7 +363,9 @@
   function asesorDe(c) { var p = perfilMarco(c); return p && p.asesor || ''; }
   function perfilBarra() {
     var y = yo(), m = E.marco;
-    var piloto = enMarco() ? '<button type="button" class="chip' + (m && m.auto ? ' activo' : '') + '" id="btnPiloto" title="Marco contesta solo a los doctores">' + (m ? (m.auto ? '✈️ Piloto automático: encendido' : '✈️ Piloto automático: apagado') : '✈️ Piloto automático…') + '</button>' : '';
+    var on = !!(m && m.auto);
+    var piloto = enMarco() ? '<button type="button" id="btnPiloto" role="switch" aria-checked="' + on + '" title="Marco contesta solo a los doctores" style="display:inline-flex;align-items:center;gap:8px;border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:inherit;padding:4px 2px;cursor:pointer' + (m ? '' : ';opacity:.5') + '">✈️ Piloto automático' +
+      '<span style="position:relative;display:inline-block;width:44px;height:26px;border-radius:13px;background:' + (on ? '#34C759' : '#C9D1CD') + ';transition:background .2s"><span style="position:absolute;top:3px;left:' + (on ? '21px' : '3px') + ';width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .2s"></span></span></button>' : '';
     return '<div id="perfilBarra" class="chips' + (esCompu() ? ' claros' : '') + '" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px">' +
       (y ? '<button type="button" class="chip' + (enMarco() ? ' activo' : '') + '" data-perfil="marco">🤖 Marco</button><button type="button" class="chip' + (enMarco() ? '' : ' activo') + '" data-perfil="yo">👤 ' + esc(y.nombre) + '</button>' : '') +
       piloto + '</div>';
