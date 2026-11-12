@@ -59,6 +59,14 @@
   function sinAcentos(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function firma(x) { try { return JSON.stringify(x); } catch (e) { return String(Math.random()); } }
   var ICON = {
+    mas: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+    camara: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 015.5 6h1.8l1.5-2h6.4l1.5 2h1.8A2.5 2.5 0 0121 8.5v9a2.5 2.5 0 01-2.5 2.5h-13A2.5 2.5 0 013 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
+    micro: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0013 0M12 18v3"/></svg>',
+    fotos: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 15.5l-5-5L7 19"/></svg>',
+    camara2: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 015.5 6h1.8l1.5-2h6.4l1.5 2h1.8A2.5 2.5 0 0121 8.5v9a2.5 2.5 0 01-2.5 2.5h-13A2.5 2.5 0 013 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
+    ubicacion: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0114 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+    contacto: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.6 18.4a6.5 6.5 0 0110.8 0"/></svg>',
+    documento: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
     chat: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>',
     personas: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M17 4a4 4 0 010 8M22 21c0-3-2-5-4-6"/></svg>',
     enviar: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>',
@@ -522,7 +530,10 @@
         '<div id="avisoVentana">' + aviso + '</div></div>' +
         '<div class="mensajes" id="mensajes">' + cuerpoMsgs + '</div>' +
         '<form class="redactar" id="formMsg" autocomplete="off"><div class="escribir">' +
+        '<button type="button" class="extra-btn solo-cel" id="btnMas" aria-label="Adjuntar"' + (puede ? '' : ' disabled') + '>' + ICON.mas + '</button>' +
         '<label class="oculto" for="msg">Escribe un mensaje</label><textarea id="msg" rows="1" placeholder="' + (puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla')) + '"' + (puede ? '' : ' disabled') + '></textarea>' +
+        '<button type="button" class="extra-btn solo-cel" id="btnCamara" aria-label="Cámara"' + (puede ? '' : ' disabled') + '>' + ICON.camara + '</button>' +
+        '<button type="button" class="extra-btn micro solo-cel" id="btnMicro" aria-label="Grabar audio"' + (puede ? '' : ' disabled') + '>' + ICON.micro + '</button>' +
         '<button class="enviar" id="btnEnviar" aria-label="Enviar"' + (puede ? '' : ' disabled') + '>' + ICON.mandar + '</button></div></form>';
       enlazarConv();
       medirConv(panel);
@@ -536,6 +547,7 @@
       if (cercaDelFinal) m.scrollTop = m.scrollHeight;
       var inp = $('msg'), btn = $('btnEnviar');
       inp.disabled = !puede; btn.disabled = !puede || !inp.value.trim();
+      ['btnMas', 'btnCamara', 'btnMicro'].forEach(function (id) { var x = $(id); if (x) x.disabled = !puede; });
       inp.placeholder = puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla');
     }
     enlazarReintentos();
@@ -563,7 +575,23 @@
   function enlazarConv() {
     var inp = $('msg'), btn = $('btnEnviar');
     app.querySelectorAll('.volver').forEach(function (a) { a.onclick = volverALista; });
-    function ajustar() { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; btn.disabled = inp.disabled || !inp.value.trim(); }
+    function ajustar() {
+      inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; btn.disabled = inp.disabled || !inp.value.trim();
+      // Como WhatsApp: con texto se ve el botón de enviar; sin texto, cámara y micrófono.
+      inp.parentNode.classList.toggle('con-texto', !!inp.value.trim());
+    }
+    // "+", cámara y micrófono (por ahora solo el diseño; mandar archivos viene después).
+    var pronto = function (que) { toast('Muy pronto podrás mandar ' + que + ' desde aquí'); };
+    $('btnMas').onclick = function () {
+      var ops = [['fotos', 'Fotos', 'fotos'], ['camara2', 'Cámara', 'camara'], ['ubicacion', 'Ubicación', 'ubicacion'], ['contacto', 'Contacto', 'contacto'], ['documento', 'Documento', 'documento']];
+      abrirHoja('<div class="adjuntar">' + ops.map(function (o) {
+        return '<button type="button" class="adjuntar-op" data-que="' + o[1] + '"><span class="adjuntar-ic ' + o[2] + '">' + ICON[o[0]] + '</span><span>' + o[1] + '</span></button>';
+      }).join('') + '</div>', function (h) {
+        h.querySelectorAll('.adjuntar-op').forEach(function (b) { b.onclick = function () { cerrarHoja(); pronto(b.getAttribute('data-que').toLowerCase() === 'fotos' ? 'fotos' : b.getAttribute('data-que').toLowerCase() === 'cámara' ? 'fotos de la cámara' : b.getAttribute('data-que').toLowerCase() === 'ubicación' ? 'tu ubicación' : b.getAttribute('data-que').toLowerCase() === 'contacto' ? 'contactos' : 'documentos'); }; });
+      });
+    };
+    $('btnCamara').onclick = function () { pronto('fotos de la cámara'); };
+    $('btnMicro').onclick = function () { pronto('audios'); };
     inp.oninput = ajustar; ajustar();
     inp.onkeydown = function (ev) { if (ev.key === 'Enter' && !ev.shiftKey && esCompu()) { ev.preventDefault(); $('formMsg').requestSubmit ? $('formMsg').requestSubmit() : $('formMsg').onsubmit(ev); } };
     $('formMsg').onsubmit = function (ev) {
