@@ -56,7 +56,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .chips-barra .chips.claros { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
 .contenido { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; min-height: 0; }
 .contenido.blanco { background: #fff; }
-.tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #E3E8E5; background: rgba(255, 255, 255, .97); padding: 2px 0 max(4px, calc(env(safe-area-inset-bottom) - 18px)); flex-shrink: 0; }
+.tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #E3E8E5; background: rgba(255, 255, 255, .97); padding: 2px 0 max(4px, calc(env(safe-area-inset-bottom) - 18px - var(--hueco, 0px))); flex-shrink: 0; }
 .tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 4px; text-decoration: none; color: var(--gris); font-size: 11.5px; font-weight: 500; position: relative; transition: color var(--rapido); }
 .tab svg { transition: transform var(--rapido); }
 .tab:active svg { transform: scale(.88); }
@@ -154,7 +154,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .cargando-msgs span:nth-child(2) { animation-delay: .15s; }
 .cargando-msgs span:nth-child(3) { animation-delay: .3s; }
 @keyframes punto { 0%, 80%, 100% { transform: scale(.6); opacity: .5; } 40% { transform: scale(1); opacity: 1; } }
-.redactar { background: #F7F8F7; padding: 8px 8px max(8px, calc(env(safe-area-inset-bottom) - 14px)); border-top: 1px solid #E3E8E5; flex-shrink: 0; }
+.redactar { background: #F7F8F7; padding: 8px 8px max(8px, calc(env(safe-area-inset-bottom) - 14px - var(--hueco, 0px))); border-top: 1px solid #E3E8E5; flex-shrink: 0; }
 .escribir { display: flex; gap: 8px; align-items: flex-end; }
 .escribir textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 120px; border-radius: 22px; border: 1px solid #D5DDD9; padding: 11px 16px; font-size: 16px; line-height: 1.35; resize: none; background: #fff; outline: none; transition: border-color var(--rapido); }
 .escribir textarea:focus { border-color: var(--borde); }
@@ -312,3 +312,6 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Línea de diagnóstico (solo en la copia de prueba). */
+#diag { position: fixed; right: 6px; top: calc(env(safe-area-inset-top) + 2px); z-index: 99; font: 10px/1.2 ui-monospace, monospace; background: rgba(0,0,0,.6); color: #fff; padding: 2px 5px; border-radius: 4px; pointer-events: none; }
