@@ -60,6 +60,7 @@
   function sinAcentos(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function firma(x) { try { return JSON.stringify(x); } catch (e) { return String(Math.random()); } }
   var ICON = {
+    ubicame: '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.3 3.7a1 1 0 00-1.1-.2L3.6 10.1a1 1 0 00.1 1.9l6.6 1.7 1.7 6.6a1 1 0 001.9.1l6.6-15.6a1 1 0 00-.2-1.1z"/></svg>',
     play: '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13a1 1 0 001.5.86l11-6.5a1 1 0 000-1.72l-11-6.5A1 1 0 008 5.5z"/></svg>',
     basura: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
     mas: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
@@ -199,9 +200,9 @@
         c.ultimoMsg = 'Tú: ' + (tipo === 'image' ? '📷 Foto' : tipo === 'audio' ? '🎤 Audio' : '📄 ' + d.nombre); c.ultimaHora = h;
         return { estado: 'enviado', hora: h, archivo: { id: id, mime: d.mime, nombre: d.nombre } };
       },
-      enviarUbicacion: function (tel, lat, lng, nombre) {
+      enviarUbicacion: function (tel, lat, lng, nombre, direccion) {
         var c = buscar(tel), h = new Date().toISOString();
-        (msgs[tel] = msgs[tel] || []).push({ direccion: 'salida', tipo: 'location', texto: nombre || '', estado: 'enviado', hora: h, archivo: { lat: lat, lng: lng, nombre: nombre || '' } });
+        (msgs[tel] = msgs[tel] || []).push({ direccion: 'salida', tipo: 'location', texto: nombre || '', estado: 'enviado', hora: h, archivo: { lat: lat, lng: lng, nombre: nombre || '', direccion: direccion || '' } });
         c.ultimoMsg = 'Tú: 📍 Ubicación'; c.ultimaHora = h; return { estado: 'enviado', hora: h };
       },
       enviarContacto: function (tel, nombre, t) {
@@ -510,7 +511,7 @@
     }
     if (t === 'ubicacion') {
       var q = encodeURIComponent(a.lat + ',' + a.lng);
-      return '<a class="medio ubic" href="https://www.google.com/maps/search/?api=1&query=' + q + '" target="_blank" rel="noopener"><span class="medio-ic">' + ICON.ubicacion + '</span><span class="medio-textos"><b>' + esc(a.nombre || 'Ubicación') + '</b><span>Abrir en Mapas</span></span></a>';
+      return '<a class="medio ubic" href="https://www.google.com/maps/search/?api=1&query=' + q + '" target="_blank" rel="noopener"><span class="medio-ic">' + ICON.ubicacion + '</span><span class="medio-textos"><b>' + esc(a.nombre || 'Ubicación') + '</b>' + (a.direccion ? '<small>' + esc(a.direccion) + '</small>' : '') + '<span>Abrir en Mapas</span></span></a>';
     }
     if (t === 'contacto') {
       return '<a class="medio contacto" href="tel:' + esc(a.tel || '') + '"><span class="medio-ic">' + ICON.contacto + '</span><span class="medio-textos"><b>' + esc(a.nombre || 'Contacto') + '</b><span>' + esc(a.tel || '') + '</span></span></a>';
@@ -785,20 +786,127 @@
       }).catch(function (e) { toast(e.message, 'error'); });
     });
   }
+  // ---------- Mandar ubicación (como WhatsApp): mapa, "mi ubicación actual", lugares cercanos y buscador.
+  // Mapa: Leaflet + mapa de CARTO/OpenStreetMap. Lugares: OpenStreetMap (Overpass y Nominatim). Todo gratis, sin claves.
+  function cargarMapa(listo, mal) {
+    if (window.L) return listo();
+    var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
+    var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    s.onload = listo; s.onerror = function () { mal(new Error('No se pudo cargar el mapa')); }; document.head.appendChild(s);
+  }
+  function distancia(a, b, c, d) { var r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return Math.round(Math.sqrt(x * x + y * y) * 6371000); }
+  function direccionOSM(t) {
+    t = t || {};
+    var calle = [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' ');
+    return [calle, t['addr:suburb'] || t['addr:neighbourhood'], t['addr:city']].filter(Boolean).join(', ');
+  }
+  function lugaresCercanos(lat, lng) {
+    var q = '[out:json][timeout:10];(node(around:400,' + lat + ',' + lng + ')[name][~"^(amenity|shop|office|healthcare|tourism|leisure)$"~"."];way(around:400,' + lat + ',' + lng + ')[name][~"^(amenity|shop|office|healthcare|tourism|leisure)$"~"."];);out center 40;';
+    return fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        return (j.elements || []).map(function (e) {
+          var la = e.lat || (e.center && e.center.lat), lo = e.lon || (e.center && e.center.lon);
+          return { nombre: e.tags.name, direccion: direccionOSM(e.tags), lat: la, lng: lo, dist: distancia(lat, lng, la, lo) };
+        }).filter(function (x) { return x.lat; }).sort(function (a, b) { return a.dist - b.dist; }).slice(0, 25);
+      });
+  }
+  function buscarLugares(texto, lat, lng) {
+    var u = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=10&countrycodes=mx&accept-language=es&q=' + encodeURIComponent(texto);
+    if (lat) u += '&viewbox=' + (lng - .4) + ',' + (lat + .4) + ',' + (lng + .4) + ',' + (lat - .4);
+    return fetch(u).then(function (r) { return r.json(); }).then(function (l) {
+      return l.map(function (x) {
+        var nombre = x.name || String(x.display_name).split(',')[0];
+        return { nombre: nombre, direccion: String(x.display_name).split(',').slice(1, 4).join(',').trim(), lat: +x.lat, lng: +x.lon };
+      });
+    });
+  }
+  function direccionDe(lat, lng) {
+    return fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=es&lat=' + lat + '&lon=' + lng)
+      .then(function (r) { return r.json(); }).then(function (x) { return String(x.display_name || '').split(',').slice(0, 3).join(',').trim(); }).catch(function () { return ''; });
+  }
   function prepararUbicacion() {
     var tel = E.telSel;
     if (!navigator.geolocation) return toast('Tu teléfono no deja usar la ubicación aquí', 'error');
-    toast('Buscando tu ubicación…');
-    navigator.geolocation.getCurrentPosition(function (pos) {
-      var lat = +pos.coords.latitude.toFixed(6), lng = +pos.coords.longitude.toFixed(6);
-      hojaEnviar('<h2 class="hoja-titulo">Mandar mi ubicación</h2><p class="hoja-texto">Se manda tu ubicación actual (precisión de unos ' + Math.round(pos.coords.accuracy) + ' m).</p>' +
-        '<label class="rotulo" for="nomUbic">Nombre del lugar (opcional)</label><input id="nomUbic" class="campo" placeholder="Ej. Médica Country">', function (h) {
-        var nombre = h.querySelector('#nomUbic').value.trim();
-        enviarMedio(tel, { tipo: 'location', texto: nombre, archivo: { lat: lat, lng: lng, nombre: nombre } }, 'Tú: 📍 Ubicación', function () {
-          return api('enviarUbicacion', tel, lat, lng, nombre);
-        });
+    var yo = null, mapa = null, punto = null, movida = false, buscando = 0;
+    var h = abrirHoja(
+      '<div class="ubic-cab"><button type="button" class="extra-btn" data-u="cerrar" aria-label="Cerrar">✕</button><h2>Enviar ubicación</h2><button type="button" class="extra-btn" data-u="recargar" aria-label="Volver a buscar">↻</button></div>' +
+      '<div class="ubic-mapa"><div id="mapaUbic"></div><span class="ubic-centro"></span>' +
+      '<label class="oculto" for="buscaUbic">Buscar lugar</label><input id="buscaUbic" class="ubic-buscar" type="search" placeholder="Buscar o escribir dirección" autocomplete="off">' +
+      '<button type="button" class="extra-btn ubic-yo" data-u="yo" aria-label="Ir a mi ubicación">' + ICON.ubicame + '</button></div>' +
+      '<div class="ubic-lista" id="listaUbic"><div class="ubic-op actual" data-u="actual"><span class="ubic-ic yo"><span></span></span><span class="medio-textos"><b>Enviar mi ubicación actual</b><span id="precUbic">Buscando tu ubicación…</span></span></div>' +
+      '<div class="ubic-titulo" id="tituloUbic">Lugares cercanos</div><div id="cercanos"><p class="nota">Buscando lugares…</p></div></div>'
+    ).querySelector('.hoja');
+    h.classList.add('hoja-ubic');
+    var lista = h.querySelector('#cercanos');
+    function filaLugar(x) {
+      return '<button type="button" class="ubic-op" data-lat="' + x.lat + '" data-lng="' + x.lng + '" data-nombre="' + esc(x.nombre) + '" data-dir="' + esc(x.direccion || '') + '"><span class="ubic-ic">' + ICON.ubicacion + '</span><span class="medio-textos"><b>' + esc(x.nombre) + '</b><span>' + esc(x.direccion || (x.dist != null ? 'A ' + x.dist + ' m' : '')) + '</span></span></button>';
+    }
+    function pintarLugares(l, vacio) { lista.innerHTML = l.length ? l.map(filaLugar).join('') : '<p class="nota">' + vacio + '</p>'; }
+    function mandar(lat, lng, nombre, direccion) {
+      cerrarHoja();
+      enviarMedio(tel, { tipo: 'location', texto: nombre || '', archivo: { lat: lat, lng: lng, nombre: nombre || '', direccion: direccion || '' } }, 'Tú: 📍 ' + (nombre || 'Ubicación'), function () {
+        return api('enviarUbicacion', tel, lat, lng, nombre || '', direccion || '');
       });
-    }, function () { toast('No se pudo obtener tu ubicación. Revisa que la app tenga permiso.', 'error'); }, { enableHighAccuracy: true, timeout: 15000 });
+    }
+    function cercanosDe(lat, lng) {
+      var n = ++buscando; lista.innerHTML = '<p class="nota">Buscando lugares…</p>';
+      lugaresCercanos(lat, lng).then(function (l) { if (n === buscando) pintarLugares(l, 'No encontré lugares con nombre cerca.'); })
+        .catch(function () { if (n === buscando) pintarLugares([], 'No se pudieron cargar los lugares cercanos.'); });
+    }
+    function ubicarme() {
+      h.querySelector('#precUbic').textContent = 'Buscando tu ubicación…';
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        yo = { lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6), prec: Math.round(pos.coords.accuracy) };
+        movida = false; actualizarPrimera();
+        if (mapa) { mapa.setView([yo.lat, yo.lng], 17); punto.setLatLng([yo.lat, yo.lng]); }
+        cercanosDe(yo.lat, yo.lng);
+      }, function () {
+        h.querySelector('#precUbic').textContent = 'No se pudo obtener tu ubicación. Revisa el permiso.';
+        lista.innerHTML = '<p class="nota">Puedes buscar un lugar arriba.</p>';
+      }, { enableHighAccuracy: true, timeout: 15000 });
+    }
+    function actualizarPrimera() {
+      var b = h.querySelector('.ubic-op.actual b'), p = h.querySelector('#precUbic');
+      if (movida) { b.textContent = 'Enviar esta ubicación'; p.textContent = 'El punto del centro del mapa'; }
+      else if (yo) { b.textContent = 'Enviar mi ubicación actual'; p.textContent = 'Margen de precisión: ' + yo.prec + ' m'; }
+    }
+    cargarMapa(function () {
+      if (!document.body.contains(h)) return;
+      var ini = yo ? [yo.lat, yo.lng] : [20.6736, -103.344];
+      mapa = L.map('mapaUbic', { zoomControl: false, attributionControl: true }).setView(ini, yo ? 17 : 12);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO' }).addTo(mapa);
+      punto = L.circleMarker(ini, { radius: 9, color: '#fff', weight: 3, fillColor: '#23B07D', fillOpacity: 1 }).addTo(mapa);
+      mapa.on('dragstart', function () { movida = true; h.classList.add('movida'); actualizarPrimera(); });
+      mapa.on('moveend', function () { if (movida) { var c = mapa.getCenter(); cercanosDe(+c.lat.toFixed(6), +c.lng.toFixed(6)); } });
+      setTimeout(function () { mapa.invalidateSize(); }, 250);
+    }, function () { h.querySelector('.ubic-mapa').classList.add('sin-mapa'); });
+    ubicarme();
+    // Buscar un lugar o dirección.
+    var tBusca, inp = h.querySelector('#buscaUbic');
+    inp.oninput = function () {
+      clearTimeout(tBusca);
+      var q = inp.value.trim(), titulo = h.querySelector('#tituloUbic');
+      if (q.length < 3) { titulo.textContent = 'Lugares cercanos'; var c = movida && mapa ? mapa.getCenter() : yo; if (c) cercanosDe(c.lat, c.lng); return; }
+      titulo.textContent = 'Resultados';
+      tBusca = setTimeout(function () {
+        var n = ++buscando; lista.innerHTML = '<p class="nota">Buscando…</p>';
+        buscarLugares(q, yo && yo.lat, yo && yo.lng).then(function (l) { if (n === buscando) pintarLugares(l, 'No encontré ese lugar.'); })
+          .catch(function () { if (n === buscando) pintarLugares([], 'No se pudo buscar. Revisa tu internet.'); });
+      }, 600);
+    };
+    h.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-u], .ubic-op'); if (!b) return;
+      var u = b.getAttribute('data-u');
+      if (u === 'cerrar') return cerrarHoja();
+      if (u === 'recargar' || u === 'yo') { h.classList.remove('movida'); return ubicarme(); }
+      if (u === 'actual') {
+        if (movida && mapa) { var c = mapa.getCenter(), la = +c.lat.toFixed(6), lo = +c.lng.toFixed(6); return direccionDe(la, lo).then(function (dir) { mandar(la, lo, '', dir); }); }
+        if (!yo) return toast('Todavía no tengo tu ubicación');
+        return direccionDe(yo.lat, yo.lng).then(function (dir) { mandar(yo.lat, yo.lng, '', dir); });
+      }
+      if (b.hasAttribute('data-lat')) mandar(+b.getAttribute('data-lat'), +b.getAttribute('data-lng'), b.getAttribute('data-nombre'), b.getAttribute('data-dir'));
+    });
   }
   function prepararContacto() {
     var tel = E.telSel;
