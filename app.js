@@ -695,10 +695,10 @@
         '<div id="avisoVentana">' + aviso + '</div></div>' +
         '<div class="mensajes" id="mensajes">' + cuerpoMsgs + '</div>' +
         '<form class="redactar" id="formMsg" autocomplete="off"><div class="marco-barra" style="display:flex;justify-content:flex-start;padding:0 4px 6px"><button type="button" class="boton-sec chico-btn" id="btnMarco" style="font-size:13px;padding:6px 12px"' + (puede ? '' : ' disabled') + '>✨ Sugerir respuesta (Marco)</button></div><div class="escribir">' +
-        '<button type="button" class="extra-btn solo-cel" id="btnMas" aria-label="Adjuntar"' + (puede ? '' : ' disabled') + '>' + ICON.mas + '</button>' +
+        '<button type="button" class="extra-btn" id="btnMas" aria-label="Adjuntar"' + (puede ? '' : ' disabled') + '>' + ICON.mas + '</button>' +
         '<label class="oculto" for="msg">Escribe un mensaje</label><textarea id="msg" rows="1" placeholder="' + (puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla')) + '"' + (puede ? '' : ' disabled') + '></textarea>' +
         '<button type="button" class="extra-btn solo-cel" id="btnCamara" aria-label="Cámara"' + (puede ? '' : ' disabled') + '>' + ICON.camara + '</button>' +
-        '<button type="button" class="extra-btn micro solo-cel" id="btnMicro" aria-label="Grabar audio"' + (puede ? '' : ' disabled') + '>' + ICON.micro + '</button>' +
+        '<button type="button" class="extra-btn micro" id="btnMicro" aria-label="Grabar audio"' + (puede ? '' : ' disabled') + '>' + ICON.micro + '</button>' +
         '<button class="enviar" id="btnEnviar" aria-label="Enviar"' + (puede ? '' : ' disabled') + '>' + ICON.mandar + '</button></div></form>';
       enlazarConv();
       medirConv(panel);
@@ -1024,7 +1024,7 @@
   function grabarAudio() {
     var tel = E.telSel, form = $('formMsg');
     if (!navigator.mediaDevices || !window.MediaRecorder) return toast('Tu teléfono no deja grabar audio aquí', 'error');
-    var tipos = ['audio/mp4', 'audio/ogg;codecs=opus', 'audio/aac'], mime = '';
+    var tipos = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/aac'], mime = '';
     for (var i = 0; i < tipos.length; i++) if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(tipos[i])) { mime = tipos[i]; break; }
     if (!mime) return toast('Este navegador no graba en un formato que acepte WhatsApp', 'error');
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
