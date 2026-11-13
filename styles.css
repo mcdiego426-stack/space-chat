@@ -465,3 +465,23 @@ body:has(.login) #extension-color { background: #0D7A5A; }
 
 /* Encabezado del chat siempre a la misma altura (con o sin teclado, como WhatsApp) y fuera de lo nublado de arriba del iPhone */
 #app > .conv .conv-barra, .con-teclado #app > .conv .conv-barra { padding-top: calc(env(safe-area-inset-top) + 22px); }
+
+/* ---------- Canales dentro del chat: WhatsApp, Instagram y Correo */
+.canales { display: flex; gap: 6px; padding: 6px 10px 2px; }
+.canal { flex: 1; border: 0; border-radius: 999px; padding: 7px 8px; font-size: 13px; font-weight: 600; background: #EEF2F0; color: #3F4A45; cursor: pointer; white-space: nowrap; }
+.canal-n { font-weight: 500; opacity: .75; }
+.canal.activo.c-wa { background: #1FA855; color: #fff; }
+.canal.activo.c-instagram { background: #8A3AB9; color: #fff; }
+.canal.activo.c-correo { background: #2563EB; color: #fff; }
+.globo.salida.canal-correo { background: #DCE8FD; }
+.globo.entrada.canal-correo { border-left: 3px solid #2563EB; }
+.globo.canal-correo .marca { color: #1D4ED8; font-size: 12px; }
+.globo.canal-correo .ver-plantilla { color: #1D4ED8; }
+.globo.salida.canal-instagram { background: #F1E4FA; }
+.globo.entrada.canal-instagram { border-left: 3px solid #8A3AB9; }
+.ventana.v-correo, #app > .conv .ventana.v-correo { background: #EAF1FE; border-color: #C7D8FB; color: #1E3A8A; }
+.ventana.v-instagram, #app > .conv .ventana.v-instagram { background: #F6ECFB; border-color: #E3CDF2; color: #5B2179; }
+.ventana.v-instagram a { color: inherit; }
+.redactar.canal-correo .marco-barra, .redactar.canal-correo .extra-btn,
+.redactar.canal-instagram .marco-barra, .redactar.canal-instagram .extra-btn { display: none !important; }
+.ficha-datos a { color: var(--verde); text-decoration: none; word-break: break-all; }
