@@ -189,6 +189,7 @@
         return { plantilla: 'primer_contacto_medica_country', estadoPlantilla: 'En revisión', cuantos: lista.length, disponibles: nuevos.length, enviadosHoy: 0, tope: 250, costoAprox: Math.round(lista.length * 0.7298 * 1.16), excluidosBaja: 1, ejemplo: lista[0] || null, semaforo: 'Verde' };
       },
       mandarLote: function () { throw new Error('Modo demo: no manda mensajes'); },
+      enviarCorreo: function () { throw new Error('Modo demo: no manda correos'); },
       semaforo: function () { return { calidadMeta: 'Sin avisos', estadoPlantilla: 'En revisión', tope: 250, lotes: [{ lote: 1, fecha: hace(60 * 52), enviados: 20, entregados: 19, si: 4, baja: 1, fallidos: 1, semaforo: 'Verde' }] }; },
       guardarSuscripcion: function () { return true; },
       enviarArchivo: function (tel, d) {
@@ -636,6 +637,19 @@
     if (!t || /^Plantilla de primer contacto$/i.test(t) || /…$/.test(t)) t = TEXTO_PLANTILLA.replace('{apellido}', (c && c.apellido) || '');
     return t;
   }
+  // ---------- Canales: WhatsApp, Instagram y Correo (cada uno con su pestaña dentro del chat)
+  function canalDe(m) { return m.tipo === 'correo' ? 'correo' : m.tipo === 'instagram' ? 'instagram' : 'wa'; }
+  function canalActual(tel) { E.canales = E.canales || {}; return E.canales[tel] || 'wa'; }
+  function igLink(h) { h = String(h || '').trim().replace(/^@/, ''); return h ? 'https://www.instagram.com/' + encodeURIComponent(h) + '/' : ''; }
+  function pestanasCanal(c, cv) {
+    var act = canalActual(c.telefono), n = { wa: 0, instagram: 0, correo: 0 };
+    ((cv && cv.mensajes) || []).forEach(function (m) { n[canalDe(m)]++; });
+    return '<div class="canales" id="canales">' + [['wa', 'WhatsApp'], ['instagram', 'Instagram'], ['correo', 'Correo']].map(function (k) {
+      return '<button type="button" class="canal c-' + k[0] + (act === k[0] ? ' activo' : '') + '" data-canal="' + k[0] + '">' + k[1] + (n[k[0]] ? ' <span class="canal-n">' + n[k[0]] + '</span>' : '') + '</button>';
+    }).join('') + '</div>';
+  }
+  function datosCorreo(m) { var a = leerArch(m.archivo); return a || {}; }
+  function leerArch(a) { if (!a) return null; if (typeof a === 'object') return a; try { return JSON.parse(a); } catch (e) { return null; } }
   function burbujas(mensajes, c) {
     var html = '', ultimoDia = '';
     mensajes.forEach(function (m, i) {
@@ -649,14 +663,27 @@
         else if (est === 'delivered') vista = '<span class="estado">' + CHECK2 + '</span>';
         else if (est === 'failed') vista = '<span class="estado fallo">No se entregó</span>';
         else vista = '<span class="estado">' + CHECK1 + '</span>';
+        if (m.tipo === 'correo' || m.tipo === 'instagram') {
+          var dc = m.tipo === 'correo' ? datosCorreo(m) : {};
+          html += '<div class="globo salida canal-' + m.tipo + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
+            (m.tipo === 'correo' ? '<span class="marca">✉️ ' + esc(dc.asunto || 'Correo') + '</span><span class="txt plegado">' + esc(m.texto) + '</span>' + (String(m.texto || '').length > 280 ? '<button type="button" class="ver-plantilla">Ver correo completo</button>' : '') : '<span class="txt">' + esc(m.texto) + '</span>') +
+            '<span class="meta">' + hora(m.hora) + ' ' + (est === 'pendiente' ? vista : est === 'error' ? '' : '<span class="estado">' + CHECK1 + '</span>') + '</span></div>' +
+            (est === 'error' ? '<div class="aviso-centro">No se envió: ' + esc(m.error || '') + '</div>' : '');
+          return;
+        }
         html += '<div class="globo salida' + (esMedio(m) ? ' con-medio' : '') + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
           (m.tipo === 'plantilla'
             ? '<span class="marca">Plantilla · primer contacto</span><span class="txt plegado">' + esc(textoPlantilla(m, c)) + '</span><button type="button" class="ver-plantilla">Ver mensaje completo</button>'
             : medioHtml(m) + (m.texto && m.tipo !== 'location' && m.tipo !== 'contacts' ? '<span class="txt">' + esc(m.texto) + '</span>' : '')) +
           '<span class="meta">' + hora(m.hora) + ' ' + vista + '</span></div>' +
-          (est === 'error' ? '<button class="reintentar-msg" data-i="' + i + '">No se envió · ' + esc(m.error || '') + ' <b>Reintentar</b></button>' : '');
+          (est === 'error' ? '<button class="reintentar-msg" data-i="' + (m._idx != null ? m._idx : i) + '">No se envió · ' + esc(m.error || '') + ' <b>Reintentar</b></button>' : '');
       } else {
-        html += '<div class="globo entrada' + (esMedio(m) ? ' con-medio' : '') + '">' + (m.tipo === 'button' || m.tipo === 'interactive' ? '<span class="marca">Tocó el botón</span>' : '') + medioHtml(m) + (m.texto && m.tipo !== 'location' && m.tipo !== 'contacts' ? '<span class="txt">' + esc(m.texto) + '</span>' : '') + '<span class="meta">' + hora(m.hora) + '</span></div>';
+        if (m.tipo === 'correo') {
+          var de = datosCorreo(m);
+          html += '<div class="globo entrada canal-correo"><span class="marca">✉️ ' + esc(de.asunto || 'Correo') + '</span><span class="txt plegado">' + esc(m.texto) + '</span>' + (String(m.texto || '').length > 280 ? '<button type="button" class="ver-plantilla">Ver correo completo</button>' : '') + '<span class="meta">' + hora(m.hora) + '</span></div>';
+          return;
+        }
+        html += '<div class="globo entrada' + (m.tipo === 'instagram' ? ' canal-instagram' : '') + (esMedio(m) ? ' con-medio' : '') + '">' + (m.tipo === 'button' || m.tipo === 'interactive' ? '<span class="marca">Tocó el botón</span>' : '') + medioHtml(m) + (m.texto && m.tipo !== 'location' && m.tipo !== 'contacts' ? '<span class="txt">' + esc(m.texto) + '</span>' : '') + '<span class="meta">' + hora(m.hora) + '</span></div>';
       }
     });
     return html;
@@ -676,13 +703,32 @@
     var cercaDelFinal = m ? (m.scrollHeight - m.scrollTop - m.clientHeight < 120) : true;
     var sub = [c.especialidad, c.ciudad].filter(Boolean).join(' · ') || telBonito(c.telefono);
     var resto = c.ventanaHasta ? restante(c.ventanaHasta) : null;
-    var puede = !!resto && c.etapa !== 'BAJA';
-    var aviso = c.etapa === 'BAJA'
-      ? '<div class="ventana cerrada">Pidió BAJA: no se le puede volver a escribir.</div>'
-      : resto ? '<div class="ventana">' + ICON.reloj + '<span><b>Puedes escribirle libre</b> por ' + resto + '</span></div>'
-        : (cv ? '<div class="ventana cerrada">Pasaron más de 24 h desde su último mensaje: solo se puede mandar plantilla.</div>' : '');
+    var canal = canalActual(tel);
+    var puede, aviso, ph;
+    if (canal === 'correo') {
+      puede = !!c.correo && c.etapa !== 'BAJA';
+      aviso = c.etapa === 'BAJA' ? '<div class="ventana cerrada">Pidió BAJA: no se le puede volver a escribir.</div>'
+        : c.correo ? '<div class="ventana v-correo"><span>✉️ Correo: <b>' + esc(c.correo) + '</b></span></div>'
+          : '<div class="ventana cerrada">Este doctor no tiene correo registrado.</div>';
+      ph = puede ? 'Escribe el correo' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Sin correo registrado');
+    } else if (canal === 'instagram') {
+      puede = false;
+      aviso = c.instagram
+        ? '<div class="ventana v-instagram"><span>Escríbele desde la app de Instagram con @altoespacio: <a href="' + esc(igLink(c.instagram)) + '" target="_blank" rel="noopener"><b>' + esc(c.instagram) + '</b></a>. Sus mensajes aparecerán aquí cuando conectemos Instagram.</span></div>'
+        : '<div class="ventana cerrada">Este doctor no tiene Instagram registrado.</div>';
+      ph = 'Se contesta desde Instagram';
+    } else {
+      puede = !!resto && c.etapa !== 'BAJA';
+      aviso = c.etapa === 'BAJA'
+        ? '<div class="ventana cerrada">Pidió BAJA: no se le puede volver a escribir.</div>'
+        : resto ? '<div class="ventana">' + ICON.reloj + '<span><b>Puedes escribirle libre</b> por ' + resto + '</span></div>'
+          : (cv ? '<div class="ventana cerrada">Pasaron más de 24 h desde su último mensaje: solo se puede mandar plantilla.</div>' : '');
+      ph = puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla');
+    }
     aviso += marcoResumen(c);
-    var cuerpoMsgs = cv ? (cv.mensajes.length ? burbujas(cv.mensajes, c) : '<p class="vacio">Sin mensajes todavía.</p>')
+    var delCanal = cv ? cv.mensajes.filter(function (x, k) { x._idx = k; return canalDe(x) === canal; }) : [];
+    var vacioTxt = canal === 'correo' ? 'Sin correos todavía.' : canal === 'instagram' ? 'Sin mensajes de Instagram todavía.' : 'Sin mensajes todavía.';
+    var cuerpoMsgs = cv ? (delCanal.length ? burbujas(delCanal, c) : '<p class="vacio">' + vacioTxt + '</p>')
       : '<div class="cargando-msgs"><span></span><span></span><span></span></div>';
 
     if (inicial || !$('formMsg')) {
@@ -692,11 +738,11 @@
         '<span class="conv-textos"><span class="conv-nombre" id="convNombre">' + esc(nombreDe(c)) + '</span><span class="conv-sub" id="convSub">' + esc(sub) + '</span></span></button>' +
         '<button class="icono-btn" id="verFicha2" aria-label="Ver ficha">' + ICON.info + '</button></header>' +
         '<div class="conv-cab-escritorio solo-escritorio"><div class="conv-cab-quien">' + avatar(c, 'chico') + '<div><div class="cab-nombre" id="cabNombre">' + esc(nombreDe(c)) + '</div><div class="nota" id="cabSub">' + esc(sub) + '</div></div></div><div class="cab-der"><button class="badge e-' + esc(c.etapa) + ' badge-btn" id="cabEtapa" title="Cambiar etapa">' + esc(c.etapa) + ' ▾</button><button class="icono-btn oscuro ficha-btn" id="verFicha3" aria-label="Ver ficha" title="Ver ficha">' + ICON.info + '</button></div></div>' +
-        '<div id="avisoVentana">' + aviso + '</div></div>' +
+        pestanasCanal(c, cv) + '<div id="avisoVentana">' + aviso + '</div></div>' +
         '<div class="mensajes" id="mensajes">' + cuerpoMsgs + '</div>' +
-        '<form class="redactar" id="formMsg" autocomplete="off"><div class="marco-barra" style="display:flex;justify-content:flex-start;padding:0 4px 6px"><button type="button" class="boton-sec chico-btn" id="btnMarco" style="font-size:13px;padding:6px 12px"' + (puede ? '' : ' disabled') + '>✨ Sugerir respuesta (Marco)</button></div><div class="escribir">' +
+        '<form class="redactar canal-' + canal + '" id="formMsg" autocomplete="off"><div class="marco-barra" style="display:flex;justify-content:flex-start;padding:0 4px 6px"><button type="button" class="boton-sec chico-btn" id="btnMarco" style="font-size:13px;padding:6px 12px"' + (puede ? '' : ' disabled') + '>✨ Sugerir respuesta (Marco)</button></div><div class="escribir">' +
         '<button type="button" class="extra-btn" id="btnMas" aria-label="Adjuntar"' + (puede ? '' : ' disabled') + '>' + ICON.mas + '</button>' +
-        '<label class="oculto" for="msg">Escribe un mensaje</label><textarea id="msg" rows="1" placeholder="' + (puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla')) + '"' + (puede ? '' : ' disabled') + '></textarea>' +
+        '<label class="oculto" for="msg">Escribe un mensaje</label><textarea id="msg" rows="1" placeholder="' + ph + '"' + (puede ? '' : ' disabled') + '></textarea>' +
         '<button type="button" class="extra-btn solo-cel" id="btnCamara" aria-label="Cámara"' + (puede ? '' : ' disabled') + '>' + ICON.camara + '</button>' +
         '<button type="button" class="extra-btn micro" id="btnMicro" aria-label="Grabar audio"' + (puede ? '' : ' disabled') + '>' + ICON.micro + '</button>' +
         '<button class="enviar" id="btnEnviar" aria-label="Enviar"' + (puede ? '' : ' disabled') + '>' + ICON.mandar + '</button></div></form>';
@@ -705,6 +751,8 @@
       var mm = $('mensajes'); mm.scrollTop = mm.scrollHeight;
     } else {
       $('avisoVentana').innerHTML = aviso;
+      var cn = $('canales'); if (cn) { cn.outerHTML = pestanasCanal(c, cv); enlazarCanales(); }
+      $('formMsg').className = 'redactar canal-' + canal;
       ['convNombre', 'cabNombre'].forEach(function (id) { var x = $(id); if (x) x.textContent = nombreDe(c); });
       ['convSub', 'cabSub'].forEach(function (id) { var x = $(id); if (x) x.textContent = sub; });
       var ce = $('cabEtapa'); if (ce) { ce.className = 'badge e-' + c.etapa + ' badge-btn'; ce.textContent = c.etapa + ' ▾'; }
@@ -713,7 +761,7 @@
       var inp = $('msg'), btn = $('btnEnviar');
       inp.disabled = !puede; btn.disabled = !puede || !inp.value.trim();
       ['btnMas', 'btnCamara', 'btnMicro', 'btnMarco'].forEach(function (id) { var x = $(id); if (x) x.disabled = !puede; });
-      inp.placeholder = puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla');
+      inp.placeholder = ph;
     }
     enlazarReintentos();
     cargarMedios();
@@ -738,7 +786,17 @@
     if (ev) ev.preventDefault();
     if (E.vengoDeLista) history.back(); else ir('chats');
   }
+  function enlazarCanales() {
+    app.querySelectorAll('[data-canal]').forEach(function (b) {
+      b.onclick = function () {
+        E.canales = E.canales || {}; E.canales[E.telSel] = b.getAttribute('data-canal');
+        var inp = $('msg'); if (inp) inp.value = '';
+        pintarConv(true);
+      };
+    });
+  }
   function enlazarConv() {
+    enlazarCanales();
     var inp = $('msg'), btn = $('btnEnviar');
     app.querySelectorAll('.volver').forEach(function (a) { a.onclick = volverALista; });
     function ajustar() {
@@ -783,6 +841,7 @@
       ev.preventDefault();
       var txt = inp.value.trim();
       if (!txt || inp.disabled) return;
+      if (canalActual(E.telSel) === 'correo') { prepararCorreo(E.telSel, txt, function () { inp.value = ''; ajustar(); }); return; }
       inp.value = ''; ajustar();
       if (esCompu()) inp.focus();
       enviar(E.telSel, txt);
@@ -1074,6 +1133,37 @@
   }
 
   /** Manda un texto: aparece al instante con relojito; luego palomita o "Reintentar". */
+  function asuntoSugerido(tel, c) {
+    var cv = E.convs[tel], ult = null;
+    ((cv && cv.mensajes) || []).forEach(function (m) { if (m.tipo === 'correo') ult = m; });
+    var a = ult ? (datosCorreo(ult).asunto || '') : '';
+    if (a) return /^re:/i.test(a) ? a : 'Re: ' + a;
+    return 'Consultorios en Médica Country' + (c && c.apellido ? ' – ' + (c.titulo || 'Dr(a).') + ' ' + c.apellido : '');
+  }
+  function prepararCorreo(tel, txt, listo) {
+    var c = contactoDe(tel); if (!c || !c.correo) return;
+    hojaEnviar('<h2 class="hoja-titulo">Mandar correo</h2><p class="nota">Para: <b>' + esc(c.correo) + '</b> · sale de altoespacio@outlook.com</p>' +
+      '<label class="rotulo" for="asuntoCorreo">Asunto</label><input id="asuntoCorreo" class="campo" value="' + esc(asuntoSugerido(tel, c)) + '">' +
+      '<label class="rotulo" for="cuerpoCorreo">Mensaje</label><textarea id="cuerpoCorreo" class="notas" style="min-height:180px">' + esc(txt) + '</textarea>', function (h) {
+      var asunto = h.querySelector('#asuntoCorreo').value.trim(), cuerpo = h.querySelector('#cuerpoCorreo').value.trim();
+      if (!asunto || !cuerpo) { toast('Pon asunto y mensaje', 'error'); return false; }
+      if (listo) listo();
+      var cv = E.convs[tel] || (E.convs[tel] = { contacto: c, mensajes: [], ventanaAbierta: false, _t: Date.now() });
+      var m = { direccion: 'salida', tipo: 'correo', texto: cuerpo, archivo: { asunto: asunto, para: c.correo }, estado: 'pendiente', hora: new Date().toISOString(), _tmp: true };
+      cv.mensajes.push(m);
+      moverArriba(tel, 'Tú: ✉️ ' + asunto, m.hora);
+      pintarConv(false);
+      api('enviarCorreo', tel, asunto, cuerpo).then(function (r) {
+        m.estado = 'enviado'; if (r && r.hora) m.hora = r.hora;
+        if (E.telSel === tel) pintarConv(false);
+        guardarCache(); toast('Correo enviado');
+        setTimeout(sincronizar, 1500);
+      }).catch(function (e) {
+        m.estado = 'error'; m.error = e.message;
+        if (E.telSel === tel) pintarConv(false); else toast('No se envió el correo: ' + e.message, 'error');
+      });
+    });
+  }
   function enviar(tel, txt) {
     var cv = E.convs[tel] || (E.convs[tel] = { contacto: contactoDe(tel), mensajes: [], ventanaAbierta: true, _t: Date.now() });
     var m = { direccion: 'salida', tipo: 'texto', texto: txt, estado: 'pendiente', hora: new Date().toISOString(), _tmp: true };
@@ -1103,9 +1193,9 @@
 
   // ---------- Ficha del doctor (en compu a la derecha; en celular como hoja que sube)
   function fichaHtml(c) {
-    var datos = [['Etapa', c.etapa], ['Especialidad', c.especialidad || '—'], ['Ciudad', c.ciudad || '—'], ['Teléfono', telBonito(c.telefono)], ['Lote', c.lote || '—']];
+    var datos = [['Etapa', c.etapa], ['Especialidad', c.especialidad || '—'], ['Ciudad', c.ciudad || '—'], ['Teléfono', telBonito(c.telefono)], ['Correo', c.correo ? { href: 'mailto:' + c.correo, txt: c.correo } : '—'], ['Instagram', c.instagram ? { href: igLink(c.instagram), txt: c.instagram } : '—'], ['Lote', c.lote || '—']];
     return '<div class="ficha-cab">' + avatar(c, 'grande') + '<div class="ficha-nombre">' + esc(nombreDe(c)) + '</div></div>' +
-      '<div class="ficha-datos">' + datos.map(function (d) { return '<div class="fila-dato"><span>' + d[0] + '</span><b>' + esc(d[1]) + '</b></div>'; }).join('') + '</div>' +
+      '<div class="ficha-datos">' + datos.map(function (d) { var v = d[1] && d[1].href ? '<a href="' + esc(d[1].href) + '" target="_blank" rel="noopener">' + esc(d[1].txt) + '</a>' : esc(d[1]); return '<div class="fila-dato"><span>' + d[0] + '</span><b>' + v + '</b></div>'; }).join('') + '</div>' +
       '<a class="boton-sec ancho" href="https://wa.me/' + esc(c.telefono) + '" target="_blank" rel="noopener">Abrir en WhatsApp</a>' +
       '<span class="rotulo">Asesor</span><div class="chips claros" style="margin-bottom:10px;flex-shrink:0;flex-wrap:wrap;min-height:34px">' + [['diego', 'Diego'], ['humberto', 'Humberto'], ['', 'Sin asignar']].map(function (a) { return '<button type="button" class="chip' + (asesorDe(c) === a[0] ? ' activo' : '') + '" data-asignar="' + a[0] + '">' + a[1] + '</button>'; }).join('') + '</div>' +
       fichaMarco(c) +
@@ -1397,7 +1487,8 @@
     var b = e.target.closest && e.target.closest('.ver-plantilla');
     if (!b) return;
     var g = b.parentNode, abierta = g.classList.toggle('abierta');
-    b.textContent = abierta ? 'Ver menos' : 'Ver mensaje completo';
+    if (!b.getAttribute('data-t')) b.setAttribute('data-t', b.textContent);
+    b.textContent = abierta ? 'Ver menos' : b.getAttribute('data-t');
   });
 
   // ------------------------------------------------------------------ gestos y teclado del celular
