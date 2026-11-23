@@ -190,6 +190,7 @@
       },
       mandarLote: function () { throw new Error('Modo demo: no manda mensajes'); },
       enviarCorreo: function () { throw new Error('Modo demo: no manda correos'); },
+      reenviarArchivo: function () { return { estado: 'enviado', hora: new Date().toISOString() }; },
       semaforo: function () { return { calidadMeta: 'Sin avisos', estadoPlantilla: 'En revisión', tope: 250, lotes: [{ lote: 1, fecha: hace(60 * 52), enviados: 20, entregados: 19, si: 4, baja: 1, fallidos: 1, semaforo: 'Verde' }] }; },
       guardarSuscripcion: function () { return true; },
       enviarArchivo: function (tel, d) {
@@ -653,6 +654,7 @@
   function burbujas(mensajes, c) {
     var html = '', ultimoDia = '';
     mensajes.forEach(function (m, i) {
+      var mi = m._idx != null ? m._idx : i;
       var d = dia(m.hora);
       if (d !== ultimoDia) { html += '<div class="aviso-centro">' + esc(d) + '</div>'; ultimoDia = d; }
       if (m.direccion === 'salida') {
@@ -665,13 +667,13 @@
         else vista = '<span class="estado">' + CHECK1 + '</span>';
         if (m.tipo === 'correo' || m.tipo === 'instagram') {
           var dc = m.tipo === 'correo' ? datosCorreo(m) : {};
-          html += '<div class="globo salida canal-' + m.tipo + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
+          html += '<div data-m="' + mi + '" class="globo salida canal-' + m.tipo + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
             (m.tipo === 'correo' ? '<span class="marca">✉️ ' + esc(dc.asunto || 'Correo') + '</span><span class="txt plegado">' + esc(m.texto) + '</span>' + (String(m.texto || '').length > 280 ? '<button type="button" class="ver-plantilla">Ver correo completo</button>' : '') : '<span class="txt">' + esc(m.texto) + '</span>') +
             '<span class="meta">' + hora(m.hora) + ' ' + (est === 'pendiente' ? vista : est === 'error' ? '' : '<span class="estado">' + CHECK1 + '</span>') + '</span></div>' +
             (est === 'error' ? '<div class="aviso-centro">No se envió: ' + esc(m.error || '') + '</div>' : '');
           return;
         }
-        html += '<div class="globo salida' + (esMedio(m) ? ' con-medio' : '') + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
+        html += '<div data-m="' + mi + '" class="globo salida' + (esMedio(m) ? ' con-medio' : '') + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
           (m.tipo === 'plantilla'
             ? '<span class="marca">Plantilla · primer contacto</span><span class="txt plegado">' + esc(textoPlantilla(m, c)) + '</span><button type="button" class="ver-plantilla">Ver mensaje completo</button>'
             : medioHtml(m) + (m.texto && m.tipo !== 'location' && m.tipo !== 'contacts' ? '<span class="txt">' + esc(m.texto) + '</span>' : '')) +
@@ -680,10 +682,10 @@
       } else {
         if (m.tipo === 'correo') {
           var de = datosCorreo(m);
-          html += '<div class="globo entrada canal-correo"><span class="marca">✉️ ' + esc(de.asunto || 'Correo') + '</span><span class="txt plegado">' + esc(m.texto) + '</span>' + (String(m.texto || '').length > 280 ? '<button type="button" class="ver-plantilla">Ver correo completo</button>' : '') + '<span class="meta">' + hora(m.hora) + '</span></div>';
+          html += '<div data-m="' + mi + '" class="globo entrada canal-correo"><span class="marca">✉️ ' + esc(de.asunto || 'Correo') + '</span><span class="txt plegado">' + esc(m.texto) + '</span>' + (String(m.texto || '').length > 280 ? '<button type="button" class="ver-plantilla">Ver correo completo</button>' : '') + '<span class="meta">' + hora(m.hora) + '</span></div>';
           return;
         }
-        html += '<div class="globo entrada' + (m.tipo === 'instagram' ? ' canal-instagram' : '') + (esMedio(m) ? ' con-medio' : '') + '">' + (m.tipo === 'button' || m.tipo === 'interactive' ? '<span class="marca">Tocó el botón</span>' : '') + medioHtml(m) + (m.texto && m.tipo !== 'location' && m.tipo !== 'contacts' ? '<span class="txt">' + esc(m.texto) + '</span>' : '') + '<span class="meta">' + hora(m.hora) + '</span></div>';
+        html += '<div data-m="' + mi + '" class="globo entrada' + (m.tipo === 'instagram' ? ' canal-instagram' : '') + (esMedio(m) ? ' con-medio' : '') + '">' + (m.tipo === 'button' || m.tipo === 'interactive' ? '<span class="marca">Tocó el botón</span>' : '') + medioHtml(m) + (m.texto && m.tipo !== 'location' && m.tipo !== 'contacts' ? '<span class="txt">' + esc(m.texto) + '</span>' : '') + '<span class="meta">' + hora(m.hora) + '</span></div>';
       }
     });
     return html;
@@ -813,7 +815,7 @@
         h.querySelectorAll('.adjuntar-op').forEach(function (b) {
           b.onclick = function () {
             var op = b.getAttribute('data-op'); cerrarHoja();
-            if (op === 'fotos') elegirArchivo('image/*', false, prepararFoto);
+            if (op === 'fotos') elegirArchivo('image/*', false, prepararFotos, true);
             else if (op === 'camara') elegirArchivo('image/*', true, prepararFoto);
             else if (op === 'documento') elegirArchivo('', false, prepararDocumento);
             else if (op === 'ubicacion') prepararUbicacion();
@@ -863,11 +865,16 @@
   }
 
   // ---------- Mandar archivos
-  function elegirArchivo(accept, camara, alElegir) {
+  function elegirArchivo(accept, camara, alElegir, varios) {
     var inp = document.createElement('input');
     inp.type = 'file'; if (accept) inp.accept = accept; if (camara) inp.setAttribute('capture', 'environment');
+    if (varios) inp.multiple = true;
     inp.style.display = 'none';
-    inp.onchange = function () { var f = inp.files && inp.files[0]; inp.remove(); if (f) alElegir(f); };
+    inp.onchange = function () {
+      var fs = Array.prototype.slice.call(inp.files || []); inp.remove();
+      if (!fs.length) return;
+      if (varios) alElegir(fs); else alElegir(fs[0]);
+    };
     document.body.appendChild(inp); inp.click();
   }
   function leerBase64(blob) {
@@ -907,6 +914,26 @@
         var pie = h.querySelector('#pieFoto').value.trim();
         enviarMedio(tel, { tipo: 'image', texto: pie, local: f.dataUrl, archivo: { mime: f.mime, nombre: f.nombre } }, 'Tú: 📷 Foto', function () {
           return api('enviarArchivo', tel, { tipo: 'imagen', nombre: f.nombre, mime: f.mime, base64: f.base64, pie: pie });
+        });
+      });
+    }).catch(function (e) { toast(e.message, 'error'); });
+  }
+  // Varias fotos de una vez (como WhatsApp): se mandan en orden, una tras otra. El comentario va con la primera.
+  function prepararFotos(files) {
+    if (files.length === 1) return prepararFoto(files[0]);
+    var tel = E.telSel;
+    if (files.length > 10) { toast('Máximo 10 fotos a la vez: mando las primeras 10'); files = files.slice(0, 10); }
+    Promise.all(files.map(comprimirFoto)).then(function (fotos) {
+      hojaEnviar('<h2 class="hoja-titulo">Mandar ' + fotos.length + ' fotos</h2><div class="vista-fotos">' + fotos.map(function (f) { return '<img src="' + f.dataUrl + '" alt="Foto">'; }).join('') + '</div>' +
+        '<label class="oculto" for="pieFoto">Comentario</label><input id="pieFoto" class="campo" placeholder="Comentario para la primera foto (opcional)">', function (h) {
+        var pie = h.querySelector('#pieFoto').value.trim(), cola = Promise.resolve();
+        fotos.forEach(function (f, k) {
+          var p = k === 0 ? pie : '';
+          enviarMedio(tel, { tipo: 'image', texto: p, local: f.dataUrl, archivo: { mime: f.mime, nombre: f.nombre } }, 'Tú: 📷 Foto', function () {
+            var paso = cola.then(function () { return api('enviarArchivo', tel, { tipo: 'imagen', nombre: f.nombre, mime: f.mime, base64: f.base64, pie: p }); });
+            cola = paso.catch(function () {});
+            return paso;
+          });
         });
       });
     }).catch(function (e) { toast(e.message, 'error'); });
@@ -1481,6 +1508,130 @@
       .then(function () { toast('Notificaciones activadas en este aparato'); })
       .catch(function (e) { toast(e.message, 'error'); });
   }
+
+  // ---------- Mantener presionado un mensaje (o clic derecho en la compu): Copiar y Reenviar, como WhatsApp.
+  function mensajeDe(g) {
+    var cv = E.convs[E.telSel], i = Number(g.getAttribute('data-m'));
+    return cv && !isNaN(i) ? cv.mensajes[i] : null;
+  }
+  function textoCopiable(m) {
+    if (m.tipo === 'plantilla') return textoPlantilla(m, contactoDe(E.telSel));
+    if (m.tipo === 'location') { var a = m.archivo || {}; return [a.nombre, a.direccion, 'https://www.google.com/maps/search/?api=1&query=' + a.lat + ',' + a.lng].filter(Boolean).join('\n'); }
+    if (m.tipo === 'contacts') { var k = m.archivo || {}; return (k.nombre || '') + ' ' + (k.tel || ''); }
+    return m.texto || '';
+  }
+  function sePuedeReenviar(m) {
+    if (m.tipo === 'plantilla' || m.tipo === 'correo' || m.tipo === 'instagram') return false;
+    if (m.estado === 'pendiente' || m.estado === 'error') return false;
+    if (TIPOS_MEDIO[m.tipo]) { var a = m.archivo || {}; return m.tipo === 'location' || m.tipo === 'contacts' || !!a.id; }
+    return !!m.texto;
+  }
+  function copiarTexto(t) {
+    var listo = function () { toast('Copiado'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(listo, function () { copiarViejo(t); listo(); });
+    copiarViejo(t); listo();
+  }
+  function copiarViejo(t) { var x = document.createElement('textarea'); x.value = t; x.style.position = 'fixed'; x.style.opacity = '0'; document.body.appendChild(x); x.select(); try { document.execCommand('copy'); } catch (e) {} x.remove(); }
+  function menuMensaje(g) {
+    var m = mensajeDe(g); if (!m) return;
+    var txt = textoCopiable(m), reenv = sePuedeReenviar(m);
+    if (!txt && !reenv) return;
+    if (navigator.vibrate) try { navigator.vibrate(10); } catch (e) {}
+    abrirHoja('<div class="menu-msg">' + (txt ? '<button type="button" class="menu-op" data-op="copiar">Copiar</button>' : '') + (reenv ? '<button type="button" class="menu-op" data-op="reenviar">Reenviar</button>' : '') + '<button type="button" class="menu-op cancelar" data-op="no">Cancelar</button></div>', function (h) {
+      h.querySelectorAll('.menu-op').forEach(function (b) {
+        b.onclick = function () {
+          var op = b.getAttribute('data-op'); cerrarHoja(true);
+          if (op === 'copiar') copiarTexto(txt);
+          else if (op === 'reenviar') elegirDestinos(m);
+        };
+      });
+    });
+  }
+  function elegirDestinos(m) {
+    var origen = E.telSel, sel = {};
+    var lista = E.chats.filter(function (c) { return c.telefono !== origen; });
+    function fila(c) {
+      var abierto = c.etapa !== 'BAJA' && c.ventanaHasta && new Date(c.ventanaHasta) > new Date();
+      return '<button type="button" class="dest' + (abierto ? '' : ' cerrado') + (sel[c.telefono] ? ' sel' : '') + '" data-tel="' + esc(c.telefono) + '"' + (abierto ? '' : ' disabled') + '>' + avatar(c, 'chico') +
+        '<span class="dest-txt"><b>' + esc(nombreDe(c)) + '</b><small>' + (abierto ? esc(c.especialidad || telBonito(c.telefono)) : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Más de 24 h: solo plantilla')) + '</small></span><span class="dest-check">✓</span></button>';
+    }
+    abrirHoja('<h2 class="hoja-titulo">Reenviar a…</h2><input id="buscaDest" class="campo" placeholder="Buscar chat"><div class="destinos" id="destinos">' + lista.map(fila).join('') + '</div>' +
+      '<div class="hoja-botones"><button class="boton-sec" data-r="no">Cancelar</button><button class="boton" data-r="si" disabled>Reenviar</button></div>', function (h) {
+      var cont = h.querySelector('#destinos'), btn = h.querySelector('[data-r="si"]');
+      function pintarLista() {
+        var q = sinAcentos(h.querySelector('#buscaDest').value);
+        cont.innerHTML = lista.filter(function (c) { return !q || sinAcentos(nombreDe(c) + ' ' + (c.especialidad || '') + ' ' + c.telefono).indexOf(q) > -1; }).map(fila).join('');
+      }
+      h.querySelector('#buscaDest').oninput = pintarLista;
+      cont.addEventListener('click', function (e) {
+        var b = e.target.closest('.dest'); if (!b || b.disabled) return;
+        var t = b.getAttribute('data-tel');
+        if (sel[t]) delete sel[t]; else if (Object.keys(sel).length < 5) sel[t] = true; else toast('Máximo 5 chats a la vez');
+        b.classList.toggle('sel', !!sel[t]);
+        var n = Object.keys(sel).length; btn.disabled = !n; btn.textContent = n ? 'Reenviar (' + n + ')' : 'Reenviar';
+      });
+      h.querySelector('[data-r="no"]').onclick = function () { cerrarHoja(); };
+      btn.onclick = function () {
+        var tels = Object.keys(sel); if (!tels.length) return;
+        cerrarHoja();
+        tels.forEach(function (t) { reenviarA(t, m); });
+        toast(tels.length === 1 ? 'Reenviado' : 'Reenviado a ' + tels.length + ' chats');
+      };
+    });
+  }
+  function reenviarA(tel, m) {
+    var a = m.archivo || {};
+    if (!TIPOS_MEDIO[m.tipo]) return enviarSinAbrir(tel, m.texto);
+    if (m.tipo === 'location') return enviarMedio(tel, { tipo: 'location', texto: a.nombre || '', archivo: a }, 'Tú: 📍 ' + (a.nombre || 'Ubicación'), function () { return api('enviarUbicacion', tel, a.lat, a.lng, a.nombre || '', a.direccion || ''); });
+    if (m.tipo === 'contacts') return enviarMedio(tel, { tipo: 'contacts', texto: '', archivo: a }, 'Tú: 👤 ' + (a.nombre || ''), function () { return api('enviarContacto', tel, a.nombre || '', a.tel || ''); });
+    var src = m.local || (a.id && E.medios[a.id] && E.medios[a.id].url) || '';
+    var tipo = m.tipo === 'sticker' ? 'image' : m.tipo === 'video' ? 'document' : m.tipo;
+    var vista = tipo === 'image' ? 'Tú: 📷 Foto' : tipo === 'audio' ? 'Tú: 🎤 Audio' : 'Tú: 📄 ' + (a.nombre || 'Documento');
+    enviarMedio(tel, { tipo: tipo, texto: tipo === 'image' || tipo === 'document' ? (m.texto || '') : '', local: tipo === 'image' ? src : undefined, archivo: { id: a.id, mime: a.mime, nombre: a.nombre } }, vista, function () {
+      return api('reenviarArchivo', tel, a.id, tipo, tipo === 'image' || tipo === 'document' ? (m.texto || '') : '');
+    });
+  }
+  // Texto reenviado a otro chat (sin abrirlo).
+  function enviarSinAbrir(tel, txt) {
+    var cv = E.convs[tel] || (E.convs[tel] = { contacto: contactoDe(tel), mensajes: [], ventanaAbierta: true, _t: Date.now() });
+    var m = { direccion: 'salida', tipo: 'texto', texto: txt, estado: 'pendiente', hora: new Date().toISOString(), _tmp: true };
+    m._reenviar = function () {
+      api('enviarTexto', tel, txt).then(function (r) { m.estado = 'enviado'; if (r && r.hora) m.hora = r.hora; guardarCache(); if (E.telSel === tel) pintarConv(false); })
+        .catch(function (e) { m.estado = 'error'; m.error = e.message.replace(/^Meta: /, ''); toast('No se reenvió: ' + e.message, 'error'); if (E.telSel === tel) pintarConv(false); });
+    };
+    cv.mensajes.push(m);
+    moverArriba(tel, 'Tú: ' + txt, m.hora);
+    m._reenviar();
+  }
+  (function () {
+    var t = null, x0 = 0, y0 = 0, g = null;
+    function cancelar() { clearTimeout(t); t = null; if (g) g.classList.remove('presionado'); g = null; }
+    document.addEventListener('touchstart', function (e) {
+      var b = e.target.closest && e.target.closest('#mensajes .globo[data-m]');
+      if (!b || e.touches.length > 1) return;
+      g = b; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+      t = setTimeout(function () { var x = g; cancelar(); E.sinClic = Date.now(); menuMensaje(x); }, 450);
+      b.classList.add('presionado');
+    }, { passive: true });
+    document.addEventListener('touchmove', function (e) {
+      if (!t) return;
+      var p = e.touches[0];
+      if (Math.abs(p.clientX - x0) > 10 || Math.abs(p.clientY - y0) > 10) cancelar();
+    }, { passive: true });
+    document.addEventListener('touchend', cancelar, { passive: true });
+    document.addEventListener('touchcancel', cancelar, { passive: true });
+    // Después de mantener presionado, el dedo al soltar no debe abrir la foto ni el documento.
+    document.addEventListener('click', function (e) {
+      if (E.sinClic && Date.now() - E.sinClic < 700) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+    document.addEventListener('contextmenu', function (e) {
+      var b = e.target.closest && e.target.closest('#mensajes .globo[data-m]');
+      if (!b) return;
+      if (!esCompu()) { e.preventDefault(); return; }
+      if (window.getSelection && String(window.getSelection())) return; // si seleccionó texto, deja el menú normal
+      e.preventDefault(); menuMensaje(b);
+    });
+  })();
 
   // Abrir / cerrar el texto completo de la plantilla.
   document.addEventListener('click', function (e) {
