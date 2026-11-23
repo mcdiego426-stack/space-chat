@@ -454,3 +454,16 @@ html:has(#app > .conv) #extension-color { display: none; } /* no tapa los botone
 #extension-color { position: fixed; top: 0; left: 0; right: 0; height: 12px; background: var(--verde); z-index: 30; }
 body:has(.login) #extension-color { background: #0D7A5A; }
 @media (min-width: 900px) { #extension-color { display: none; } }
+
+/* ---------- Marco (secretario): sugerencias que Diego aprueba ---------- */
+.marco-pill { display: inline-block; align-self: flex-start; width: fit-content; margin-top: 3px; padding: 1px 8px; border-radius: 10px; background: #EEF0FF; color: #3B3F9E; font-size: 11px; font-weight: 600; }
+.marco-caja { margin: 14px 0 6px; padding: 12px; border-radius: 12px; background: #F4F5FF; border: 1px solid #DADDFB; }
+.marco-caja .rotulo { color: #3B3F9E; }
+.marco-linea { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0 6px; }
+.marco-nivel { font-size: 13px; white-space: nowrap; }
+.marco-texto { margin: 4px 0; font-size: 14px; line-height: 1.4; }
+.marco-botones { display: flex; gap: 8px; margin-top: 10px; }
+.marco-botones .boton-sec { flex: 1; }
+.marco-bitacora { margin: 10px 0 4px; font-size: 13px; color: var(--texto); }
+.marco-bitacora summary { cursor: pointer; font-weight: 600; color: #3B3F9E; }
+.marco-bitacora p { margin: 6px 0 0; padding-left: 8px; border-left: 2px solid #DADDFB; }
