@@ -11,7 +11,8 @@
   var E = {
     medios: {},
     sesion: null, chats: [], contactos: [], convs: {}, filtroChat: 'Todos', filtroEtapa: '', buscaChat: '', buscaContacto: '',
-    lote: 20, previa: null, semaforo: null, telSel: '', vista: '', cargandoConv: false, listos: {}, mostrarContactos: 80
+    lote: 20, previa: null, semaforo: null, telSel: '', vista: '', cargandoConv: false, listos: {}, mostrarContactos: 80,
+    marco: { propuestas: {}, cargado: 0 } // sugerencias pendientes de Marco, por teléfono
   };
 
   // ------------------------------------------------------------------ utilidades
@@ -60,6 +61,7 @@
   function sinAcentos(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function firma(x) { try { return JSON.stringify(x); } catch (e) { return String(Math.random()); } }
   var ICON = {
+    marco: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M9.5 16h5"/></svg>',
     ubicame: '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.3 3.7a1 1 0 00-1.1-.2L3.6 10.1a1 1 0 00.1 1.9l6.6 1.7 1.7 6.6a1 1 0 001.9.1l6.6-15.6a1 1 0 00-.2-1.1z"/></svg>',
     play: '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13a1 1 0 001.5.86l11-6.5a1 1 0 000-1.72l-11-6.5A1 1 0 008 5.5z"/></svg>',
     basura: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
@@ -136,7 +138,7 @@
     var cs = [
       { titulo: 'Dra.', nombre: 'Zaira', apellido: 'Escobedo', especialidad: 'Ginecología', ciudad: 'Guadalajara', telefono: '523300000001', etapa: 'Interesado', lote: 1, ultimoMsg: 'Sí, quiero información', ultimaHora: hace(20), sinLeer: 1, ventanaHasta: new Date(ahora + 23.6 * 3600e3).toISOString(), notas: '' },
       { titulo: 'Dr.', nombre: 'Ejemplo', apellido: 'Martínez', especialidad: 'Pediatría', ciudad: 'Zapopan', telefono: '523300000002', etapa: 'Interesado', lote: 1, ultimoMsg: '¿Qué metros tiene el más chico?', ultimaHora: hace(47), sinLeer: 2, ventanaHasta: new Date(ahora + 23 * 3600e3).toISOString(), notas: '' },
-      { titulo: 'Dra.', nombre: 'Ejemplo', apellido: 'García', especialidad: 'Dermatología', ciudad: 'Guadalajara', telefono: '523300000003', etapa: 'Cita', lote: 1, ultimoMsg: 'Tú: Le comparto el plano del piso 9', ultimaHora: hace(60 * 26), sinLeer: 0, ventanaHasta: '', notas: 'Busca piso alto' },
+      { titulo: 'Dra.', nombre: 'Ejemplo', apellido: 'García', especialidad: 'Dermatología', ciudad: 'Guadalajara', telefono: '523300000003', etapa: 'Cita', lote: 1, ultimoMsg: 'Tú: Le comparto el plano del piso 9', ultimaHora: hace(60 * 26), sinLeer: 0, ventanaHasta: '', notas: 'Busca piso alto\n— Marco · 22/11: 🔥 Caliente · Pidió visita el jueves · Siguiente: confirmar hora' },
       { titulo: 'Dr.', nombre: 'Ejemplo', apellido: 'Hernández', especialidad: 'Cardiología', ciudad: 'Guadalajara', telefono: '523300000004', etapa: 'BAJA', lote: 1, ultimoMsg: 'No me interesa', ultimaHora: hace(60 * 28), sinLeer: 0, ventanaHasta: '', notas: '' },
       { titulo: 'Dra.', nombre: 'Ejemplo', apellido: 'López', especialidad: 'Oftalmología', ciudad: 'Zapopan', telefono: '523300000005', etapa: 'Contactado', lote: 1, ultimoMsg: 'Tú: Plantilla de primer contacto', ultimaHora: hace(60 * 50), sinLeer: 0, ventanaHasta: '', notas: '' },
       { titulo: 'Dr.', nombre: 'Ejemplo', apellido: 'Ramírez', especialidad: 'Ortopedia', ciudad: 'Tlaquepaque', telefono: '523300000006', etapa: 'Contactado', lote: 1, ultimoMsg: 'Tú: Plantilla de primer contacto', ultimaHora: hace(60 * 51), sinLeer: 0, ventanaHasta: '', notas: '' }
@@ -158,6 +160,12 @@
       ]
     };
     var archivosDemo = { n: 0 };
+    var marcoPedido = false;
+    var propuestasDemo = [
+      { id: 'p1', telefono: '523300000002', etapaPropuesta: 'Interesado', nivel: 'caliente', resumen: 'Preguntó los metros del consultorio más chico. Respondió rápido.', siguientePaso: 'Mandarle el plano con metros y precio del más chico.', estado: 'pendiente' },
+      { id: 'p2', telefono: '523300000005', etapaPropuesta: 'Contactado', nivel: 'frío', resumen: 'No ha respondido a la plantilla.', siguientePaso: 'Esperar; no volver a escribir hasta que responda.', estado: 'pendiente' },
+      { id: 'p3', telefono: '523300000001', etapaPropuesta: 'Cita', nivel: 'tibio', resumen: 'Dijo que sí quiere información, sin preguntar nada concreto. (Ejemplo para probar Aplicar.)', siguientePaso: 'Proponerle visita esta semana.', estado: 'pendiente' }
+    ];
     function buscar(tel) { for (var i = 0; i < cs.length; i++) if (cs[i].telefono === tel) return cs[i]; return null; }
     function chats() { return cs.filter(function (c) { return c.ultimaHora; }).sort(function (a, b) { return new Date(b.ultimaHora) - new Date(a.ultimaHora); }); }
     function conv(tel, sinMarcar) {
@@ -183,6 +191,14 @@
       },
       cambiarEtapa: function (tel, etapa) { buscar(tel).etapa = etapa; return true; },
       guardarNotas: function (tel, notas) { buscar(tel).notas = notas; return true; },
+      pedirMarco: function () { var ya = marcoPedido; marcoPedido = true; return { yaHabia: ya }; },
+      propuestasMarco: function () { return propuestasDemo.filter(function (p) { return p.estado === 'pendiente'; }); },
+      decidirPropuestaMarco: function (id, decision) {
+        if (['aplicada', 'descartada'].indexOf(decision) < 0) throw new Error('Decisión no válida');
+        var p = propuestasDemo.filter(function (x) { return x.id === id; })[0]; if (!p) throw new Error('No existe');
+        if (decision === 'aplicada' && p.etapaPropuesta !== buscar(p.telefono).etapa) buscar(p.telefono).etapa = p.etapaPropuesta;
+        p.estado = decision; return true;
+      },
       importarContactos: function () { return { nuevos: 0, repetidos: 0, sinTelefono: 0 }; },
       vistaPreviaLote: function (cuantos) {
         var nuevos = cs.filter(function (c) { return c.etapa === 'Nuevo'; }), lista = nuevos.slice(0, cuantos);
@@ -316,11 +332,12 @@
     return '<header class="barra escritorio solo-escritorio">' +
       '<div class="marca-app"><div class="login-icono chico">' + ICON.chat.replace('currentColor', '#0B6B4F') + '</div><b>Space Chat</b>' + (DEMO ? '<span class="badge demo">Demo</span>' : '') + '</div>' +
       '<nav class="nav-escritorio" aria-label="Secciones">' + b('chats', 'Chats', n ? ' <span class="contador mini">' + n + '</span>' : '') + b('contactos', 'Contactos') + b('campanas', 'Campañas') + b('semaforo', 'Semáforo') + '</nav>' +
-      '<div class="barra-der"><button class="icono-btn" data-accion="notif" aria-label="Activar notificaciones" title="Activar notificaciones">' + ICON.campana + '</button>' +
+      '<div class="barra-der"><button class="icono-btn" data-accion="marco" aria-label="Pedirle a Marco que revise" title="Pedirle a Marco que revise">' + ICON.marco + '</button><button class="icono-btn" data-accion="notif" aria-label="Activar notificaciones" title="Activar notificaciones">' + ICON.campana + '</button>' +
       '<span class="quien">' + esc(E.sesion.nombre || E.sesion.correo) + '</span><button class="icono-btn" data-accion="salir" aria-label="Cerrar sesión" title="Cerrar sesión">' + ICON.salir + '</button></div></header>';
   }
   function enlazarComunes(raiz) {
     (raiz || app).querySelectorAll('[data-accion="notif"]').forEach(function (b) { b.onclick = activarNotificaciones; });
+    (raiz || app).querySelectorAll('[data-accion="marco"]').forEach(function (b) { b.onclick = pedirAMarco; });
     (raiz || app).querySelectorAll('[data-accion="salir"]').forEach(function (b) {
       b.onclick = function () { confirmar('¿Cerrar sesión?', 'Tendrás que volver a entrar con tu cuenta de Google.', 'Cerrar sesión').then(function (si) { if (si) cerrarSesion(); }); };
     });
@@ -404,7 +421,8 @@
     return '<a class="fila' + (sel ? ' sel' : '') + (nueva ? ' nueva' : '') + '" href="#chat/' + esc(c.telefono) + '" data-tel="' + esc(c.telefono) + '">' + avatar(c) +
       '<div class="fila-info"><div class="fila-arriba"><span class="nombre">' + esc(nombreDe(c)) + tempIcono(c) + '</span><span class="hora">' + esc(horaCorta(c.ultimaHora)) + '</span></div>' +
       '<div class="fila-abajo"><span class="ultimo">' + esc(c.ultimoMsg) + '</span>' + (nueva ? '<span class="contador">' + Number(c.sinLeer) + '</span>' : '') + '</div>' +
-      '<span class="etapa t-' + esc(c.etapa) + '">' + esc(c.etapa) + (c.especialidad ? ' · ' + esc(c.especialidad) : '') + (enMarco() && asesorDe(c) ? ' · 👤 ' + esc(NOMBRE_ASESOR[asesorDe(c)] || '') : '') + '</span></div></a>';
+      '<span class="etapa t-' + esc(c.etapa) + '">' + esc(c.etapa) + (c.especialidad ? ' · ' + esc(c.especialidad) : '') + (enMarco() && asesorDe(c) ? ' · 👤 ' + esc(NOMBRE_ASESOR[asesorDe(c)] || '') : '') + '</span>' +
+      (E.marco.propuestas[c.telefono] ? '<span class="marco-pill">Marco sugiere</span>' : '') + '</div></a>';
   }
   function chatsFiltrados() {
     var q = sinAcentos(E.buscaChat);
@@ -466,7 +484,7 @@
       } else if (tel) {
         app.innerHTML = '<div class="conv entra" id="panelConv"></div>';
       } else {
-        app.innerHTML = '<header class="barra"><div class="barra-fila"><h1>Space Chat' + (DEMO ? ' <span class="badge demo">Demo</span>' : '') + '</h1><div class="barra-der"><button class="icono-btn" data-accion="notif" aria-label="Activar notificaciones">' + ICON.campana + '</button><button class="icono-btn" data-accion="salir" aria-label="Cerrar sesión">' + ICON.salir + '</button></div></div>' +
+        app.innerHTML = '<header class="barra"><div class="barra-fila"><h1>Space Chat' + (DEMO ? ' <span class="badge demo">Demo</span>' : '') + '</h1><div class="barra-der"><button class="icono-btn" data-accion="marco" aria-label="Pedirle a Marco que revise" title="Pedirle a Marco que revise">' + ICON.marco + '</button><button class="icono-btn" data-accion="notif" aria-label="Activar notificaciones">' + ICON.campana + '</button><button class="icono-btn" data-accion="salir" aria-label="Cerrar sesión">' + ICON.salir + '</button></div></div>' +
           perfilBarra() + '<label class="oculto" for="buscaChat">Buscar chat</label><input id="buscaChat" class="buscar" type="search" placeholder="Buscar chat" value="' + esc(E.buscaChat) + '">' + chipsChat(true) + '</header>' +
           '<div class="contenido blanco" id="listaChats"></div>' + tabs();
       }
@@ -492,6 +510,7 @@
       $('panelFicha').innerHTML = '<span class="rotulo">Ficha</span><p class="nota">Elige un chat para ver la ficha del doctor.</p>';
     }
     sincronizar();
+    cargarMarco();
   }
 
   // Trae del cerebro, en UNA sola llamada, la lista de chats y la conversación abierta.
@@ -1225,6 +1244,7 @@
       '<div class="ficha-datos">' + datos.map(function (d) { var v = d[1] && d[1].href ? '<a href="' + esc(d[1].href) + '" target="_blank" rel="noopener">' + esc(d[1].txt) + '</a>' : esc(d[1]); return '<div class="fila-dato"><span>' + d[0] + '</span><b>' + v + '</b></div>'; }).join('') + '</div>' +
       '<a class="boton-sec ancho" href="https://wa.me/' + esc(c.telefono) + '" target="_blank" rel="noopener">Abrir en WhatsApp</a>' +
       '<span class="rotulo">Asesor</span><div class="chips claros" style="margin-bottom:10px;flex-shrink:0;flex-wrap:wrap;min-height:34px">' + [['diego', 'Diego'], ['humberto', 'Humberto'], ['', 'Sin asignar']].map(function (a) { return '<button type="button" class="chip' + (asesorDe(c) === a[0] ? ' activo' : '') + '" data-asignar="' + a[0] + '">' + a[1] + '</button>'; }).join('') + '</div>' +
+      marcoFichaHtml(c) +
       fichaMarco(c) +
       '<label class="rotulo" for="notas">Notas</label><textarea id="notas" class="notas" placeholder="Ej. busca consultorio con vista, piso alto">' + esc(c.notas) + '</textarea>' +
       '<span class="nota" id="estadoNotas"></span>' +
@@ -1242,6 +1262,7 @@
       }, 900);
     };
     raiz.querySelector('[data-cambiar-etapa]').onclick = function () { elegirEtapa(c); };
+    enlazarMarco(raiz, c);
     var b = raiz.querySelector('[data-baja]');
     if (b) b.onclick = function () { pedirBaja(c); };
     raiz.querySelectorAll('[data-asignar]').forEach(function (b) { b.onclick = function () {
@@ -1301,6 +1322,57 @@
     if (E.telSel === tel) { var f = $('panelFicha'); if (f) f.removeAttribute('data-tel'); pintarConv(false); }
     refrescarListaChats();
     if (seccion() === 'contactos') pintarListaContactos();
+  }
+
+  // ================================================================== MARCO (secretario)
+  // Marco lee las conversaciones (desde la Mac de Diego) y deja SUGERENCIAS. Nada se aplica sin que Diego toque "Aplicar".
+  var NIVEL_MARCO = { caliente: '🔥 Caliente', tibio: '🌤️ Tibio', 'frío': '❄️ Frío' };
+  function cargarMarco(forzar) {
+    if (!E.sesion || (!forzar && Date.now() - E.marco.cargado < 60e3)) return;
+    E.marco.cargado = Date.now();
+    api('propuestasMarco').then(function (lista) {
+      var porTel = {};
+      (lista || []).forEach(function (p) { porTel[p.telefono] = p; });
+      if (firma(porTel) === firma(E.marco.propuestas)) return;
+      E.marco.propuestas = porTel;
+      refrescarListaChats();
+      if (E.telSel) { var f = $('panelFicha'); if (f) { f.removeAttribute('data-tel'); pintarFicha(contactoDe(E.telSel)); } }
+    }).catch(function () { E.marco.cargado = 0; });
+  }
+  function pedirAMarco() {
+    api('pedirMarco').then(function (r) {
+      toast(r && r.yaHabia ? 'Marco ya tiene una revisión pendiente.' : 'Listo: Marco revisará los chats en unos minutos.');
+    }).catch(function (e) { toast('No se pudo pedir: ' + e.message, 'error'); });
+  }
+  function bitacoraMarco(notas) {
+    return String(notas || '').split('\n').filter(function (l) { return /^— Marco · /.test(l); });
+  }
+  function marcoFichaHtml(c) {
+    var p = E.marco.propuestas[c.telefono], h = '';
+    if (p) {
+      var cambia = p.etapaPropuesta !== c.etapa;
+      h += '<div class="marco-caja"><span class="rotulo">Marco sugiere</span>' +
+        '<div class="marco-linea"><b>' + (cambia ? esc(c.etapa) + ' → ' + esc(p.etapaPropuesta) : 'Seguir en ' + esc(p.etapaPropuesta)) + '</b>' +
+        '<span class="marco-nivel">' + esc(NIVEL_MARCO[p.nivel] || p.nivel) + '</span></div>' +
+        (p.resumen ? '<p class="marco-texto">' + esc(p.resumen) + '</p>' : '') +
+        (p.siguientePaso ? '<p class="marco-texto"><b>Siguiente paso:</b> ' + esc(p.siguientePaso) + '</p>' : '') +
+        '<div class="marco-botones"><button class="boton-sec" data-marco-aplicar>' + (cambia ? 'Aplicar' : 'Entendido') + '</button><button class="boton-sec" data-marco-descartar>Descartar</button></div></div>';
+    }
+    var b = bitacoraMarco(c.notas);
+    if (b.length) h += '<details class="marco-bitacora"><summary>Bitácora de Marco (' + b.length + ')</summary>' + b.slice(-10).reverse().map(function (l) { return '<p>' + esc(l.replace(/^— Marco · /, '')) + '</p>'; }).join('') + '</details>';
+    return h;
+  }
+  function enlazarMarco(raiz, c) {
+    var p = E.marco.propuestas[c.telefono]; if (!p) return;
+    function decidir(decision) {
+      delete E.marco.propuestas[c.telefono];
+      if ($('hoja') || document.querySelector('.hoja')) cerrarHoja();
+      if (decision === 'aplicada' && p.etapaPropuesta !== c.etapa) cambiarEtapa(c, p.etapaPropuesta);
+      else { var f = $('panelFicha'); if (f) { f.removeAttribute('data-tel'); pintarFicha(c); } refrescarListaChats(); toast(decision === 'aplicada' ? 'Listo' : 'Sugerencia descartada'); }
+      api('decidirPropuestaMarco', p.id, decision).catch(function (e) { E.marco.propuestas[c.telefono] = p; refrescarListaChats(); toast('No se guardó la decisión: ' + e.message, 'error'); });
+    }
+    raiz.querySelector('[data-marco-aplicar]').onclick = function () { decidir('aplicada'); };
+    raiz.querySelector('[data-marco-descartar]').onclick = function () { decidir('descartada'); };
   }
 
   // ================================================================== CONTACTOS
