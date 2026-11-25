@@ -94,7 +94,7 @@
   function api(cita) {
     return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ cita: cita }) })
       .then(function (r) { return r.json(); }, function () { throw new Error('Sin conexión. Revise su internet e intente de nuevo.'); })
-      .then(function (j) { if (!j.ok) throw new Error(j.error || 'Algo salió mal.'); return j.data; });
+      .then(function (j) { if (!j.ok) throw new Error(j.error || j.mensaje || 'Algo salió mal.'); return j.data; });
   }
   function cargando() { $('cuerpo').innerHTML = '<div class="cargando"><i></i><i></i><i></i></div>'; $('pie').hidden = true; }
   function error(msg) {
