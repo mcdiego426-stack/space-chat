@@ -200,11 +200,24 @@
         p.estado = decision; return true;
       },
       importarContactos: function () { return { nuevos: 0, repetidos: 0, sinTelefono: 0 }; },
-      vistaPreviaLote: function (cuantos) {
-        var nuevos = cs.filter(function (c) { return c.etapa === 'Nuevo'; }), lista = nuevos.slice(0, cuantos);
-        return { plantilla: 'primer_contacto_medica_country', estadoPlantilla: 'En revisión', cuantos: lista.length, disponibles: nuevos.length, enviadosHoy: 0, tope: 250, costoAprox: Math.round(lista.length * 0.7298 * 1.16), excluidosBaja: 1, ejemplo: lista[0] || null, semaforo: 'Verde' };
+      plantillasAprobadas: function () {
+        return [
+          { nombre: 'primer_contacto_medica_country', idioma: 'es_MX', encabezado: 'IMAGE', cuerpo: 'Dr(a). {{1}}:\n\nEspero que se encuentre bien. Le escribo en nombre de Alto Espacio, colaborador de MÉDICA COUNTRY, un nuevo desarrollo médico en la colonia Country Club de Guadalajara…', botones: ['Sí, quiero información', 'No me interesa'], variables: ['1'], resultados: { enviados: 67, interesados: 4, baja: 1 } },
+          { nombre: 'mensualidades_country', idioma: 'es_MX', encabezado: 'IMAGE', cuerpo: 'Hola {{1}}, acceda a su propio consultorio en Country Club con *mensualidades sin intereses desde $5,750 al mes.*\n\nAparte su lugar con *$50,000 reembolsables*. *MÉDICA COUNTRY*, desarrollo 100% médico.\n\n¿Gusta que le agendemos una cita con uno de nuestros asesores?', botones: ['Sí, agendar cita', 'No me interesa'], variables: ['1'], resultados: null }
+        ];
+      },
+      vistaPreviaLote: function (cuantos, opc) {
+        opc = opc || {};
+        var nuevos = cs.filter(function (c) { return c.etapa === 'Nuevo'; }), base = opc.fuente === 'lista' ? nuevos.slice(0, 100) : nuevos, lista = base.slice(0, cuantos);
+        var pl = Demo.plantillasAprobadas().filter(function (t) { return t.nombre === opc.plantilla; })[0];
+        var ej = lista[0], txt = '';
+        if (pl && ej) txt = pl.cuerpo.replace('{{1}}', /Dr\(a\)/.test(pl.cuerpo) ? ej.apellido : (ej.titulo || 'Dr(a).') + ' ' + ej.apellido);
+        return { plantilla: opc.plantilla, cuantos: lista.length, disponibles: base.length, lista: { total: 100, nota: '100 médicos únicos · 72 especialidades' }, enviadosHoy: 0, tope: 250, costoAprox: Math.round(lista.length * 0.7298 * 1.16), excluidosBaja: 1, ejemplo: ej || null, textoEjemplo: txt, semaforo: 'Verde' };
       },
       mandarLote: function () { throw new Error('Modo demo: no manda mensajes'); },
+      mandarmePrueba: function () { return { tel: '…4236' }; },
+      verListaLote: function () { var n = cs.filter(function (c) { return c.etapa === 'Nuevo'; }).slice(0, 100); return { total: n.length, nota: 'Lote 3', contactos: n.map(function (c, i) { return { telefono: c.telefono, nombre: (c.titulo + ' ' + c.nombre + ' ' + c.apellido).trim(), especialidad: c.especialidad, ciudad: c.ciudad, listo: i !== 3, motivo: i === 3 ? 'Ya contactado' : '' }; }) }; },
+      quitarDeListaLote: function () { return 99; },
       enviarCorreo: function () { throw new Error('Modo demo: no manda correos'); },
       reenviarArchivo: function () { return { estado: 'enviado', hora: new Date().toISOString() }; },
       semaforo: function () { return { calidadMeta: 'Sin avisos', estadoPlantilla: 'En revisión', tope: 250, lotes: [{ lote: 1, fecha: hace(60 * 52), enviados: 20, entregados: 19, si: 4, baja: 1, fallidos: 1, semaforo: 'Verde' }] }; },
@@ -1495,39 +1508,150 @@
   // ================================================================== CAMPAÑAS
   function vistaCampanas() {
     E.telSel = ''; E.vista = 'campanas';
-    function cargar() { api('vistaPreviaLote', E.lote).then(function (p) { E.previa = p; dibujar(); }).catch(function (e) { toast(e.message, 'error'); }); }
+    if (!E.fuente) E.fuente = 'lista';
+    var DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    function cuando(iso) {
+      var d = new Date(iso), h = d.getHours(), m = ('0' + d.getMinutes()).slice(-2);
+      return DIAS[d.getDay()] + ' ' + d.getDate() + ' a las ' + ((h % 12) || 12) + ':' + m + (h < 12 ? ' a. m.' : ' p. m.');
+    }
+    function bonito(n) { n = String(n || '').replace(/_/g, ' '); return n.charAt(0).toUpperCase() + n.slice(1); }
+    function formato(t) { return esc(t).replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/_([^_\n]+)_/g, '<i>$1</i>'); }
+    function ejemploTexto(pl) { return pl.cuerpo.replace(/\{\{\s*[\w]+\s*\}\}/, /Dr\(a\)\.?\s*\{\{/.test(pl.cuerpo) ? 'Gutiérrez' : 'Dr. Gutiérrez'); }
+    function opciones() {
+      var partes = (E.plantillaSel || '').split('|');
+      return { plantilla: partes[0] || '', idioma: partes[1] || '', fuente: E.fuente };
+    }
+    function plantillaActual() {
+      var o = opciones();
+      return (E.plantillas || []).filter(function (t) { return t.nombre === o.plantilla && t.idioma === o.idioma; })[0] || null;
+    }
+    function cargarPlantillas() {
+      if (E.plantillas) return cargar();
+      api('plantillasAprobadas').then(function (l) {
+        E.plantillas = l || [];
+        if (!E.plantillaSel && E.plantillas.length) E.plantillaSel = E.plantillas[0].nombre + '|' + E.plantillas[0].idioma;
+        dibujar(); cargar();
+      }).catch(function (e) { E.plantillas = []; dibujar(); toast(e.message, 'error'); });
+    }
+    function cargar() {
+      if (!E.plantillas || !E.plantillas.length) return;
+      api('vistaPreviaLote', E.lote, opciones()).then(function (p) {
+        E.previa = p;
+        if (p.disponibles != null && E.lote > p.disponibles && p.disponibles > 0) { E.lote = p.disponibles; return cargar(); }
+        dibujar();
+      }).catch(function (e) { toast(e.message, 'error'); });
+    }
+    function resultadosTexto(r) {
+      if (!r || !r.enviados) return '<span class="nota">Nueva · todavía sin envíos</span>';
+      var pct = Math.round(r.interesados * 100 / r.enviados);
+      return '<span class="nota">' + r.enviados + ' enviados · <b style="color:var(--verde)">' + r.interesados + ' interesados (' + pct + ' %)</b>' + (r.baja ? ' · ' + r.baja + ' baja' : '') + '</span>';
+    }
+    function tarjetaPlantilla(t) {
+      var v = t.nombre + '|' + t.idioma, sel = v === E.plantillaSel;
+      var corto = ejemploTexto(t); if (corto.length > 170) corto = corto.slice(0, 170).replace(/\s+\S*$/, '').replace(/[.,;:*]+$/, '') + '…';
+      return '<button type="button" class="tarjeta" data-plantilla="' + esc(v) + '" style="text-align:left;cursor:pointer;border:2px solid ' + (sel ? 'var(--verde)' : 'transparent') + '">' +
+        '<div class="fila-dato"><b>' + (sel ? '● ' : '○ ') + esc(bonito(t.nombre)) + '</b>' + (t.encabezado === 'IMAGE' ? '<span class="nota">con imagen</span>' : '') + '</div>' +
+        '<div class="globo salida" style="max-width:100%;align-self:stretch;margin:0"><span style="white-space:pre-wrap;font-size:14px">' + formato(corto) + '</span></div>' +
+        (t.botones.length ? '<span class="nota">Botones: ' + t.botones.map(esc).join(' · ') + '</span>' : '') +
+        resultadosTexto(t.resultados) + '</button>';
+    }
+    function opcionFuente(id, titulo, sub, extra) {
+      var sel = E.fuente === id;
+      return '<button type="button" class="tarjeta" data-fuente="' + id + '" style="text-align:left;cursor:pointer;border:2px solid ' + (sel ? 'var(--verde)' : 'transparent') + '">' +
+        '<b>' + (sel ? '● ' : '○ ') + titulo + '</b><span class="nota">' + sub + '</span>' + (extra || '') + '</button>';
+    }
     function dibujar() {
       if (seccion() !== 'campanas') return;
-      var p = E.previa || {}, cargando = !E.previa;
-      var ej = p.ejemplo;
-      var bloqueo = p.bloqueadoHasta && new Date(p.bloqueadoHasta) > new Date() ? restante(p.bloqueadoHasta) : null;
-      var activa = !p.estadoPlantilla || /APPROVED|Activa/i.test(p.estadoPlantilla);
-      var puede = !cargando && p.cuantos > 0 && !bloqueo && p.semaforo !== 'Rojo' && activa;
-      var motivo = cargando ? 'Revisando…' : !activa ? 'La plantilla todavía no está aprobada por Meta.' : bloqueo ? 'El siguiente lote se habilita en ' + bloqueo + '.' : p.semaforo === 'Rojo' ? 'Semáforo en rojo: no se puede mandar.' : !p.cuantos ? 'No hay contactos nuevos para mandar.' : 'Después de mandar, el siguiente lote se habilita en 48 h y según el semáforo.';
-      var cuerpo =
-        '<section class="tarjeta"><span class="rotulo">Plantilla</span><div class="fila-dato"><b>Primer contacto Médica Country</b><span class="badge ' + (activa ? 'e-Interesado' : 'e-Cita') + '">' + (cargando ? '…' : activa ? 'Aprobada' : esc(estadoPlantilla(p.estadoPlantilla))) + '</span></div><span class="nota">Imagen + texto · botones Sí / No me interesa</span></section>' +
-        '<section class="tarjeta"><span class="rotulo">A quién</span><div class="fila-dato"><span>Contactos nuevos</span><div class="contador-lote"><button class="redondo" data-lote="-1" aria-label="Menos">−</button><b class="num-lote">' + E.lote + '</b><button class="redondo" data-lote="1" aria-label="Más">+</button></div></div><span class="nota">' + (p.disponibles != null ? p.disponibles + ' contactos nuevos disponibles' : '&nbsp;') + '</span></section>' +
-        '<section class="tarjeta grid3"><div class="dato"><span>Tope hoy</span><b>' + ((p.enviadosHoy || 0) + (p.cuantos || 0)) + ' / ' + (p.tope || 250) + '</b></div><div class="dato"><span>Costo aprox.</span><b>$' + (p.costoAprox || 0) + '</b></div><div class="dato"><span>Excluidos</span><b>' + (p.excluidosBaja || 0) + ' BAJA</b></div></section>' +
-        '<section class="previa"><span class="rotulo">Vista previa</span><div class="globo salida" style="max-width:92%"><div class="img-previa"><span>MÉDICA COUNTRY</span><small>Imagen de la torre</small></div><span>Dr(a). <b>' + esc(ej ? ej.apellido : 'Apellido') + '</b>: Espero que se encuentre bien. Le escribo en nombre de Alto Espacio…</span></div></section>' +
-        '<p class="nota">' + esc(motivo) + '</p>' +
-        '<button class="boton" id="mandar"' + (puede ? '' : ' disabled') + '>Mandar lote de ' + (p.cuantos != null ? p.cuantos : E.lote) + '</button>';
+      var p = E.previa || {}, pl = plantillaActual();
+      var cargando = !E.plantillas || (E.plantillas.length && !E.previa);
+      var bloqueo = p.bloqueadoHasta && new Date(p.bloqueadoHasta) > new Date();
+      var hora = new Date().getHours(), buenaHora = hora >= 9 && hora < 13;
+      var lista = p.lista;
+      var aviso = '';
+      if (bloqueo) aviso = '<section class="tarjeta" style="background:#FFF6E0"><b>⏳ Todavía no se puede mandar otro lote</b><span class="nota">Para cuidar tu número, entre lotes esperamos 48 h. Podrás mandar el ' + esc(cuando(p.bloqueadoHasta)) + '. Mientras, puedes preparar todo.</span></section>';
+      else if (p.semaforo === 'Rojo') aviso = '<section class="tarjeta" style="background:#FDE8E6"><b>🛑 Semáforo en rojo</b><span class="nota">Hubo varias bajas en el último lote. Revisa el Semáforo antes de mandar más.</span></section>';
+      else if (!buenaHora) aviso = '<section class="tarjeta" style="background:#EEF2F0"><b>🕘 Tip</b><span class="nota">Los médicos contestan más entre 9 a. m. y 1 p. m., antes y entre consultas.</span></section>';
+      var paso1 = '<h2 style="font-size:17px;margin:6px 2px 0">1 · ¿Qué mensaje?</h2>' +
+        (!E.plantillas ? '<section class="tarjeta"><span class="nota">Buscando tus plantillas aprobadas en Meta…</span></section>'
+          : !E.plantillas.length ? '<section class="tarjeta"><b>No hay plantillas aprobadas</b><span class="nota">Cuando Meta apruebe una, aparece aquí sola.</span></section>'
+          : E.plantillas.map(tarjetaPlantilla).join(''));
+      var paso2 = '<h2 style="font-size:17px;margin:10px 2px 0">2 · ¿A quién?</h2>' +
+        (lista && lista.total ? opcionFuente('lista', 'Lista recomendada', esc(lista.nota || (lista.total + ' médicos revisados')) + ' · sin repetidos', E.fuente === 'lista' ? '<span class="nota" style="color:var(--verde);font-weight:600;text-decoration:underline" data-verlista="1">Ver y editar la lista →</span>' : '') : '') +
+        opcionFuente('nuevos', 'Siguientes de la hoja', 'Los primeros contactos "Nuevo" en el orden de la hoja') +
+        '<section class="tarjeta"><div class="fila-dato"><span>¿A cuántos?</span><div class="contador-lote"><button class="redondo" data-lote="-1" aria-label="Menos">−</button><b class="num-lote">' + E.lote + '</b><button class="redondo" data-lote="1" aria-label="Más">+</button></div></div>' +
+          '<div class="chips claros">' + [20, 50, 100].map(function (n) { return '<button type="button" class="chip' + (E.lote === n ? ' activo' : '') + '" data-cuantos="' + n + '">' + n + '</button>'; }).join('') + '</div>' +
+          '<span class="nota">' + (p.disponibles != null ? p.disponibles + ' disponibles · ' + (p.excluidosBaja || 0) + ' con BAJA nunca reciben' : '&nbsp;') + '</span></section>';
+      var ej = p.ejemplo, quien = ej ? ((ej.titulo || '') + ' ' + (ej.nombre || '') + ' ' + (ej.apellido || '')).trim() : '';
+      var paso3 = '<h2 style="font-size:17px;margin:10px 2px 0">3 · Revisa y manda</h2>' +
+        '<section class="previa"><span class="rotulo">Así le llega' + (quien ? ' a ' + esc(quien) : '') + '</span><div class="globo salida" style="max-width:92%">' +
+          (pl && pl.encabezado === 'IMAGE' ? '<div class="img-previa"><span>MÉDICA COUNTRY</span><small>Imagen de la torre</small></div>' : '') +
+          '<span style="white-space:pre-wrap">' + formato(p.textoEjemplo || (pl ? ejemploTexto(pl) : '')) + '</span></div>' +
+          (pl && pl.botones.length ? '<div style="display:flex;flex-direction:column;gap:4px;max-width:92%;align-self:flex-end;width:100%">' + pl.botones.map(function (b) { return '<div class="globo salida" style="max-width:100%;margin:0;text-align:center;color:#1E88E5;font-weight:500">' + esc(b) + '</div>'; }).join('') + '</div>' : '') +
+        '</section>' +
+        '<section class="tarjeta grid3"><div class="dato"><span>Para</span><b>' + (p.cuantos || 0) + ' médicos</b></div><div class="dato"><span>Costo aprox.</span><b>$' + (p.costoAprox || 0) + '</b></div><div class="dato"><span>Hoy</span><b>' + ((p.enviadosHoy || 0) + (p.cuantos || 0)) + ' / ' + (p.tope || 250) + '</b></div></section>';
+      var puede = !cargando && pl && p.cuantos > 0 && !bloqueo && p.semaforo !== 'Rojo';
+      var botones = '<button class="boton-sec" id="prueba"' + (pl ? '' : ' disabled') + ' style="width:100%;height:46px">📱 Mandarme una prueba</button>' +
+        '<button class="boton" id="mandar"' + (puede ? '' : ' disabled') + '>' + (cargando ? 'Revisando…' : bloqueo ? 'Disponible el ' + esc(cuando(p.bloqueadoHasta)) : !p.cuantos ? 'No hay a quién mandar' : 'Mandar a ' + p.cuantos + ' médicos') + '</button>';
+      var cuerpo = aviso + paso1 + paso2 + paso3 + botones + '<div style="height:90px"></div>';
       if (esCompu()) app.innerHTML = barraEscritorio() + '<div class="contenido"><div class="pagina angosta"><h1>Nuevo lote</h1>' + cuerpo + '</div></div>';
       else app.innerHTML = '<header class="barra"><h1>Nuevo lote</h1></header><div class="contenido"><div class="pagina">' + cuerpo + '</div></div>' + tabs();
       enlazarComunes();
+      app.querySelectorAll('[data-plantilla]').forEach(function (b) {
+        b.onclick = function () { E.plantillaSel = b.getAttribute('data-plantilla'); E.previa = null; dibujar(); cargar(); };
+      });
+      app.querySelectorAll('[data-fuente]').forEach(function (b) {
+        b.onclick = function (ev) { if (ev.target.getAttribute('data-verlista')) return verLista(); E.fuente = b.getAttribute('data-fuente'); E.previa = null; dibujar(); cargar(); };
+      });
+      app.querySelectorAll('[data-cuantos]').forEach(function (b) {
+        b.onclick = function () { E.lote = Number(b.getAttribute('data-cuantos')); E.previa = null; dibujar(); cargar(); };
+      });
       app.querySelectorAll('[data-lote]').forEach(function (b) {
         b.onclick = function () { E.lote = Math.max(1, Math.min(250, E.lote + Number(b.getAttribute('data-lote')) * (E.lote >= 50 ? 10 : 5))); app.querySelector('.num-lote').textContent = E.lote; clearTimeout(cargar._t); cargar._t = setTimeout(cargar, 350); };
       });
+      $('prueba').onclick = function () {
+        var o = opciones(), btn = $('prueba'); btn.disabled = true; btn.textContent = 'Mandando prueba…';
+        api('mandarmePrueba', o.plantilla, o.idioma).then(function (r) { toast('Prueba enviada a tu WhatsApp (' + r.tel + ')'); })
+          .catch(function (e) { toast(e.message, 'error'); })
+          .then(function () { btn.disabled = false; btn.textContent = '📱 Mandarme una prueba'; });
+      };
       $('mandar').onclick = function () {
-        confirmar('¿Mandar el lote?', 'Se manda la plantilla a ' + p.cuantos + ' contactos. Costo aproximado $' + p.costoAprox + '. Esto no se puede deshacer.', 'Mandar lote').then(function (si) {
+        var o = opciones();
+        confirmar('¿Mandar a ' + p.cuantos + ' médicos?',
+          'Mensaje: ' + bonito(o.plantilla) + '\nA quién: ' + (o.fuente === 'lista' ? 'lista recomendada' : 'siguientes de la hoja') + '\nCosto aproximado: $' + p.costoAprox + '\n\nNo se puede deshacer. El siguiente lote se habilita en 48 h.', 'Sí, mandar').then(function (si) {
           if (!si) return;
-          var btn = $('mandar'); btn.disabled = true; btn.textContent = 'Mandando…';
-          api('mandarLote', E.lote, {}).then(function (r) { toast('Lote ' + r.lote + ': ' + r.enviados + ' enviados'); ir('semaforo'); })
-            .catch(function (e) { toast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Mandar lote'; });
+          var btn = $('mandar'); btn.disabled = true; btn.textContent = 'Mandando… no cierres la app (≈' + Math.max(1, Math.round(p.cuantos * 0.7 / 60)) + ' min)';
+          api('mandarLote', E.lote, o).then(function (r) {
+            toast('✅ Lote ' + r.lote + ': ' + r.enviados + ' enviados' + (r.fallidos ? ' · ' + r.fallidos + ' no se pudieron' : ''));
+            E.previa = null; E.plantillas = null; ir('semaforo');
+          }).catch(function (e) { toast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Mandar a ' + p.cuantos + ' médicos'; });
         });
       };
     }
+    function verLista() {
+      abrirHoja('<h2 class="hoja-titulo">Lista recomendada</h2><p class="hoja-texto">Cargando…</p>', function () {});
+      api('verListaLote').then(function (l) { pintarLista(l); }).catch(function (e) { cerrarHoja(); toast(e.message, 'error'); });
+    }
+    function pintarLista(l) {
+      var listos = l.contactos.filter(function (c) { return c.listo; }).length;
+      var filas = l.contactos.map(function (c) {
+        return '<div class="fila-dato" style="padding:8px 0;border-bottom:1px solid #EEF2F0;' + (c.listo ? '' : 'opacity:.5') + '">' +
+          '<div style="display:flex;flex-direction:column;min-width:0"><b style="font-size:14px">' + esc(c.nombre) + '</b><span class="nota">' + esc([c.especialidad, c.ciudad].filter(Boolean).join(' · ')) + (c.listo ? '' : ' · ' + esc(c.motivo)) + '</span></div>' +
+          (c.listo ? '<button class="redondo" data-quitar="' + esc(c.telefono) + '" aria-label="Quitar de la lista">✕</button>' : '') + '</div>';
+      }).join('');
+      var h = $('hoja') && $('hoja').querySelector('.hoja');
+      if (!h) return;
+      h.innerHTML = '<div class="hoja-asa"></div><h2 class="hoja-titulo">Lista recomendada · ' + listos + ' listos</h2><p class="hoja-texto">Médicos únicos que nunca han recibido mensaje. Toca ✕ para quitar a alguien; no se borra de tus contactos.</p><div>' + filas + '</div><button class="boton" id="cerrar-lista">Listo</button>';
+      $('cerrar-lista').onclick = function () { cerrarHoja(); E.previa = null; cargar(); };
+      h.querySelectorAll('[data-quitar]').forEach(function (b) {
+        b.onclick = function () {
+          var tel = b.getAttribute('data-quitar');
+          l.contactos = l.contactos.filter(function (c) { return c.telefono !== tel; }); pintarLista(l);
+          api('quitarDeListaLote', tel).catch(function (e) { toast(e.message, 'error'); });
+        };
+      });
+    }
     dibujar();
-    cargar();
+    cargarPlantillas();
   }
 
   // ================================================================== SEMÁFORO
