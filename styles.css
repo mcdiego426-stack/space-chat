@@ -519,3 +519,11 @@ body:has(.login) #extension-color { background: #0D7A5A; }
 @media (hover: none) {
   #mensajes .globo { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 }
+/* Vistazo: mantener presionado un chat para ver sus últimos mensajes sin abrirlo */
+.fila.presionado { filter: brightness(.94); transition: filter .2s; }
+.vistazo-cab { display: flex; align-items: center; gap: 10px; }
+.vistazo-cab > div:last-child { display: flex; flex-direction: column; min-width: 0; }
+.vistazo-cab b { font-size: 16px; }
+.vistazo-msgs { flex: none; max-height: 52vh; min-height: 120px; border-radius: 14px; background: var(--chat); padding: 8px 8px 10px; }
+.vistazo-msgs .medio, .vistazo-msgs button:not(.ver-plantilla) { pointer-events: none; }
+.vistazo-nota { margin: 0; text-align: center; }

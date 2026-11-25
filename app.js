@@ -1593,8 +1593,11 @@
       var botones = '<button class="boton-sec" id="prueba"' + (pl ? '' : ' disabled') + ' style="width:100%;height:46px">📱 Mandarme una prueba</button>' +
         '<button class="boton" id="mandar"' + (puede ? '' : ' disabled') + '>' + (cargando ? 'Revisando…' : bloqueo ? 'Disponible el ' + esc(cuando(p.bloqueadoHasta)) : !p.cuantos ? 'No hay a quién mandar' : 'Mandar a ' + p.cuantos + ' médicos') + '</button>';
       var cuerpo = aviso + paso1 + paso2 + paso3 + botones + '<div style="height:90px"></div>';
+      var mismaVista = !!app.querySelector('[data-plantilla], [data-fuente]');
+      var yPrev = mismaVista ? ((app.querySelector('.contenido') || {}).scrollTop || 0) : 0;
       if (esCompu()) app.innerHTML = barraEscritorio() + '<div class="contenido"><div class="pagina angosta"><h1>Nuevo lote</h1>' + cuerpo + '</div></div>';
       else app.innerHTML = '<header class="barra"><h1>Nuevo lote</h1></header><div class="contenido"><div class="pagina">' + cuerpo + '</div></div>' + tabs();
+      var contNuevo = app.querySelector('.contenido'); if (contNuevo && yPrev) contNuevo.scrollTop = yPrev;
       enlazarComunes();
       app.querySelectorAll('[data-plantilla]').forEach(function (b) {
         b.onclick = function () { E.plantillaSel = b.getAttribute('data-plantilla'); E.previa = null; dibujar(); cargar(); };
@@ -1826,6 +1829,60 @@
       if (!esCompu()) { e.preventDefault(); return; }
       if (window.getSelection && String(window.getSelection())) return; // si seleccionó texto, deja el menú normal
       e.preventDefault(); menuMensaje(b);
+    });
+  })();
+
+  // ---------- Vistazo: mantener presionado un chat de la lista = ver sus últimos mensajes sin abrirlo (como en WhatsApp).
+  function vistazo(tel) {
+    var c = contactoDe(tel) || { telefono: tel };
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) {}
+    function cuerpo(cv) {
+      if (!cv) return '<div class="cargando-msgs"><span></span><span></span><span></span></div>';
+      var ms = (cv.mensajes || []).slice(-12);
+      return ms.length ? burbujas(ms, cv.contacto || c) : '<p class="vacio">Sin mensajes todavía.</p>';
+    }
+    var cv0 = E.convs[tel];
+    abrirHoja('<div class="vistazo-cab">' + avatar(c) + '<div><b>' + esc(nombreDe(c)) + '</b><span class="nota">' + esc(c.etapa || '') + (c.especialidad ? ' · ' + esc(c.especialidad) : '') + '</span></div></div>' +
+      '<div class="mensajes vistazo-msgs" id="vistazoMsgs">' + cuerpo(cv0) + '</div>' +
+      '<p class="nota vistazo-nota">Solo es un vistazo: no se marca como leído.</p>' +
+      '<div class="hoja-botones"><button class="boton-sec" data-v="cerrar">Cerrar</button><button class="boton" data-v="abrir">Abrir chat</button></div>', function (h) {
+        h.classList.add('hoja-vistazo');
+        h.querySelector('[data-v="cerrar"]').onclick = function () { cerrarHoja(); };
+        h.querySelector('[data-v="abrir"]').onclick = function () { cerrarHoja(true); ir('chat/' + tel); };
+        var m = h.querySelector('#vistazoMsgs'); m.scrollTop = m.scrollHeight;
+      });
+    var viejo = !cv0 || (cv0.contacto && c.ultimaHora && cv0.contacto.ultimaHora !== c.ultimaHora);
+    if (viejo) {
+      api('conversacion', tel, true).then(function (cv) {
+        if (!cv || !cv.contacto) return;
+        if (tel !== E.telSel) { cv._t = Date.now() - 1; E.convs[tel] = cv; }
+        var m = $('vistazoMsgs'); if (m) { m.innerHTML = cuerpo(cv); m.scrollTop = m.scrollHeight; }
+      }).catch(function (e) { var m = $('vistazoMsgs'); if (m && !cv0) m.innerHTML = '<p class="vacio">' + esc(e.message) + '</p>'; });
+    }
+  }
+  (function () {
+    var t = null, x0 = 0, y0 = 0, f = null, disparo = false;
+    function cancelar() { clearTimeout(t); t = null; if (f) f.classList.remove('presionado'); f = null; }
+    document.addEventListener('touchstart', function (e) {
+      var fila = e.target.closest && e.target.closest('#listaChats .fila[data-tel]');
+      if (!fila || e.touches.length > 1) return;
+      f = fila; disparo = false; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+      t = setTimeout(function () { var tel = f.getAttribute('data-tel'); cancelar(); disparo = true; E.sinClic = Date.now(); vistazo(tel); }, 450);
+      fila.classList.add('presionado');
+    }, { passive: true });
+    document.addEventListener('touchmove', function (e) {
+      if (!t) return;
+      var p = e.touches[0];
+      if (Math.abs(p.clientX - x0) > 10 || Math.abs(p.clientY - y0) > 10) cancelar();
+    }, { passive: true });
+    document.addEventListener('touchend', function () { cancelar(); if (disparo) { disparo = false; E.sinClic = Date.now(); } }, { passive: true });
+    document.addEventListener('touchcancel', cancelar, { passive: true });
+    // En la compu: clic derecho sobre un chat.
+    document.addEventListener('contextmenu', function (e) {
+      var fila = e.target.closest && e.target.closest('#listaChats .fila[data-tel]');
+      if (!fila) return;
+      e.preventDefault();
+      if (esCompu()) vistazo(fila.getAttribute('data-tel'));
     });
   })();
 
