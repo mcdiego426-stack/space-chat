@@ -299,14 +299,14 @@
   }
 
   // ------------------------------------------------------------------ hojas (ventanas que suben desde abajo) y confirmaciones
-  function abrirHoja(html, alAbrir) {
+  function abrirHoja(html, alAbrir, fija) {
     cerrarHoja(true);
     var fondo = document.createElement('div');
     fondo.className = 'hoja-fondo'; fondo.id = 'hoja';
     fondo.innerHTML = '<div class="hoja" role="dialog" aria-modal="true"><div class="hoja-asa"></div>' + html + '</div>';
     document.body.appendChild(fondo);
     requestAnimationFrame(function () { fondo.classList.add('abierta'); });
-    fondo.addEventListener('click', function (ev) { if (ev.target === fondo) cerrarHoja(); });
+    fondo.addEventListener('click', function (ev) { if (ev.target === fondo && !fija) cerrarHoja(); });
     if (alAbrir) alAbrir(fondo.querySelector('.hoja'));
     return fondo;
   }
@@ -1527,16 +1527,31 @@
     }
     function cargarPlantillas() {
       if (E.plantillas) return cargar();
-      api('plantillasAprobadas').then(function (l) {
-        E.plantillas = l || [];
-        if (!E.plantillaSel && E.plantillas.length) E.plantillaSel = E.plantillas[0].nombre + '|' + E.plantillas[0].idioma;
+      // Muestra al instante las plantillas guardadas en el teléfono y las actualiza por detrás.
+      var guardadas = null;
+      try { guardadas = JSON.parse(localStorage.getItem('sc_plantillas') || 'null'); } catch (e) {}
+      if (guardadas && guardadas.length) {
+        E.plantillas = guardadas;
+        if (!E.plantillaSel) E.plantillaSel = guardadas[0].nombre + '|' + guardadas[0].idioma;
         dibujar(); cargar();
-      }).catch(function (e) { E.plantillas = []; dibujar(); toast(e.message, 'error'); });
+      }
+      api('plantillasAprobadas').then(function (l) {
+        var cambio = JSON.stringify(l || []) !== JSON.stringify(E.plantillas || []);
+        E.plantillas = l || [];
+        try { localStorage.setItem('sc_plantillas', JSON.stringify(E.plantillas)); } catch (e) {}
+        if (!E.plantillaSel && E.plantillas.length) E.plantillaSel = E.plantillas[0].nombre + '|' + E.plantillas[0].idioma;
+        if (E.vista !== 'campanas') return;
+        if (!guardadas) { dibujar(); cargar(); } else if (cambio) dibujar();
+      }).catch(function (e) { if (!E.plantillas) { E.plantillas = []; dibujar(); } toast(e.message, 'error'); });
     }
     function cargar() {
       if (!E.plantillas || !E.plantillas.length) return;
       api('vistaPreviaLote', E.lote, opciones()).then(function (p) {
         E.previa = p;
+        if (E.fuente === 'lista' && !E.loteManual && p.lista && p.lista.total) {
+          var meta = Math.min(p.lista.total, p.disponibles || p.lista.total, p.tope || 250);
+          if (meta > 0 && E.lote !== meta) { E.lote = meta; return cargar(); }
+        }
         if (p.disponibles != null && E.lote > p.disponibles && p.disponibles > 0) { E.lote = p.disponibles; return cargar(); }
         dibujar();
       }).catch(function (e) { toast(e.message, 'error'); });
@@ -1568,7 +1583,7 @@
       var hora = new Date().getHours(), buenaHora = hora >= 9 && hora < 13;
       var lista = p.lista;
       var aviso = '';
-      if (bloqueo) aviso = '<section class="tarjeta" style="background:#FFF6E0"><b>⏳ Todavía no se puede mandar otro lote</b><span class="nota">Para cuidar tu número, entre lotes esperamos 48 h. Podrás mandar el ' + esc(cuando(p.bloqueadoHasta)) + '. Mientras, puedes preparar todo.</span></section>';
+      if (bloqueo) aviso = '<section class="tarjeta" style="background:#FFF6E0"><b>⏳ Todavía no se puede mandar otro lote</b><span class="nota">Para cuidar tu número, entre lotes esperamos 24 h. Podrás mandar el ' + esc(cuando(p.bloqueadoHasta)) + '. Mientras, puedes preparar todo.</span></section>';
       else if (p.semaforo === 'Rojo') aviso = '<section class="tarjeta" style="background:#FDE8E6"><b>🛑 Semáforo en rojo</b><span class="nota">Hubo varias bajas en el último lote. Revisa el Semáforo antes de mandar más.</span></section>';
       else if (!buenaHora) aviso = '<section class="tarjeta" style="background:#EEF2F0"><b>🕘 Tip</b><span class="nota">Los médicos contestan más entre 9 a. m. y 1 p. m., antes y entre consultas.</span></section>';
       var paso1 = '<h2 style="font-size:17px;margin:6px 2px 0">1 · ¿Qué mensaje?</h2>' +
@@ -1603,13 +1618,13 @@
         b.onclick = function () { E.plantillaSel = b.getAttribute('data-plantilla'); E.previa = null; dibujar(); cargar(); };
       });
       app.querySelectorAll('[data-fuente]').forEach(function (b) {
-        b.onclick = function (ev) { if (ev.target.getAttribute('data-verlista')) return verLista(); E.fuente = b.getAttribute('data-fuente'); E.previa = null; dibujar(); cargar(); };
+        b.onclick = function (ev) { if (ev.target.getAttribute('data-verlista')) return verLista(); E.fuente = b.getAttribute('data-fuente'); E.loteManual = false; E.previa = null; dibujar(); cargar(); };
       });
       app.querySelectorAll('[data-cuantos]').forEach(function (b) {
-        b.onclick = function () { E.lote = Number(b.getAttribute('data-cuantos')); E.previa = null; dibujar(); cargar(); };
+        b.onclick = function () { E.lote = Number(b.getAttribute('data-cuantos')); E.loteManual = true; E.previa = null; dibujar(); cargar(); };
       });
       app.querySelectorAll('[data-lote]').forEach(function (b) {
-        b.onclick = function () { E.lote = Math.max(1, Math.min(250, E.lote + Number(b.getAttribute('data-lote')) * (E.lote >= 50 ? 10 : 5))); app.querySelector('.num-lote').textContent = E.lote; clearTimeout(cargar._t); cargar._t = setTimeout(cargar, 350); };
+        b.onclick = function () { E.loteManual = true; E.lote = Math.max(1, Math.min(250, E.lote + Number(b.getAttribute('data-lote')) * (E.lote >= 50 ? 10 : 5))); app.querySelector('.num-lote').textContent = E.lote; clearTimeout(cargar._t); cargar._t = setTimeout(cargar, 350); };
       });
       $('prueba').onclick = function () {
         var o = opciones(), btn = $('prueba'); btn.disabled = true; btn.textContent = 'Mandando prueba…';
@@ -1620,15 +1635,61 @@
       $('mandar').onclick = function () {
         var o = opciones();
         confirmar('¿Mandar a ' + p.cuantos + ' médicos?',
-          'Mensaje: ' + bonito(o.plantilla) + '\nA quién: ' + (o.fuente === 'lista' ? 'lista recomendada' : 'siguientes de la hoja') + '\nCosto aproximado: $' + p.costoAprox + '\n\nNo se puede deshacer. El siguiente lote se habilita en 48 h.', 'Sí, mandar').then(function (si) {
+          'Mensaje: ' + bonito(o.plantilla) + '\nA quién: ' + (o.fuente === 'lista' ? 'lista recomendada' : 'siguientes de la hoja') + '\nCosto aproximado: $' + p.costoAprox + '\n\nNo se puede deshacer. El siguiente lote se habilita en 24 h.', 'Sí, mandar').then(function (si) {
           if (!si) return;
-          var btn = $('mandar'); btn.disabled = true; btn.textContent = 'Mandando… no cierres la app (≈' + Math.max(1, Math.round(p.cuantos * 0.7 / 60)) + ' min)';
-          api('mandarLote', E.lote, o).then(function (r) {
-            toast('✅ Lote ' + r.lote + ': ' + r.enviados + ' enviados' + (r.fallidos ? ' · ' + r.fallidos + ' no se pudieron' : ''));
-            E.previa = null; E.plantillas = null; ir('semaforo');
-          }).catch(function (e) { toast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Mandar a ' + p.cuantos + ' médicos'; });
+          mandarConAvance(p.cuantos, o);
         });
       };
+    }
+    // Pantalla de "mandando…" con avance; al terminar dice clarito cuántos salieron.
+    function mandarConAvance(n, o) {
+      var seg = Math.max(20, Math.round(n * 1.2)), t0 = Date.now(), fin = false;
+      abrirHoja('<div class="envio" id="envio"><div class="envio-ic"><span class="girando"></span></div>' +
+        '<h2 class="hoja-titulo">Mandando a ' + n + ' médicos…</h2>' +
+        '<p class="hoja-texto">Tarda como ' + (seg < 90 ? seg + ' segundos' : Math.round(seg / 60) + ' minutos') + '. Deja la app abierta y la pantalla encendida.</p>' +
+        '<div class="barra-avance"><span id="envioBar"></span></div><span class="nota" id="envioSeg">0 s</span></div>', null, true);
+      var reloj = setInterval(function () {
+        var s = (Date.now() - t0) / 1000, b = $('envioBar'), e = $('envioSeg');
+        if (b) b.style.width = Math.min(95, s / seg * 100) + '%';
+        if (e) e.textContent = Math.round(s) + ' s' + (s > seg ? ' · ya casi…' : '');
+      }, 500);
+      function cerrarCon(html, botones) {
+        fin = true; clearInterval(reloj);
+        var h = $('envio'); if (!h) return false;
+        h.innerHTML = html + '<div class="hoja-botones">' + botones + '</div>';
+        h.querySelectorAll('[data-e]').forEach(function (b) {
+          b.onclick = function () { var d = b.getAttribute('data-e'); cerrarHoja(true); if (d === 'aqui') { E.previa = null; dibujar(); cargar(); } else ir(d); };
+        });
+        return true;
+      }
+      function listo(r) {
+        if (fin) return;
+        E.previa = null; E.plantillas = null; E.loteManual = false;
+        try { if (navigator.vibrate) navigator.vibrate([30, 60, 30]); } catch (e) {}
+        var ok = cerrarCon('<div class="envio-ic ok">✓</div><h2 class="hoja-titulo">¡Lote ' + esc(r.lote) + ' enviado!</h2>' +
+          '<p class="hoja-texto"><b>' + (r.enviados || 0) + ' mensajes</b> salieron' + (r.fallidos ? ' · ' + r.fallidos + ' no se pudieron' : '') + '.<br>Las respuestas te van a llegar en Chats.</p>',
+          '<button class="boton-sec" data-e="chats">Ir a Chats</button><button class="boton" data-e="semaforo">Ver Semáforo</button>');
+        if (!ok) toast('✅ Lote ' + r.lote + ': ' + r.enviados + ' enviados');
+      }
+      function noSe(msg, quizas) {
+        if (fin) return;
+        var ok = cerrarCon('<div class="envio-ic ' + (quizas ? 'duda' : 'mal') + '">' + (quizas ? '?' : '!') + '</div>' +
+          '<h2 class="hoja-titulo">' + (quizas ? 'No pude confirmar el envío' : 'No se pudo mandar') + '</h2>' +
+          '<p class="hoja-texto">' + (quizas ? 'Se cortó la conexión con la app, pero el envío puede seguir por detrás. Revisa el Semáforo en un minuto antes de volver a mandar.' : esc(msg)) + '</p>',
+          quizas ? '<button class="boton" data-e="semaforo">Ver Semáforo</button>' : '<button class="boton" data-e="aqui">Entendido</button>');
+        if (!ok) toast(msg, 'error');
+      }
+      // Revisa en el Semáforo si el lote ya quedó registrado (por si se cortó la conexión).
+      function revisar(msg) {
+        api('semaforo').then(function (s) {
+          var ult = (s.lotes || []).slice().sort(function (a, b) { return new Date(b.fecha) - new Date(a.fecha); })[0];
+          if (ult && new Date(ult.fecha).getTime() > t0 - 60000) listo({ lote: ult.lote, enviados: ult.enviados, fallidos: ult.fallidos });
+          else noSe(msg, /conexi/i.test(msg));
+        }).catch(function () { noSe(msg, true); });
+      }
+      api('mandarLote', n, o).then(listo).catch(function (e) {
+        if (/conexi|failed|network|load/i.test(e.message)) revisar(e.message); else noSe(e.message, false);
+      });
     }
     function verLista() {
       abrirHoja('<h2 class="hoja-titulo">Lista recomendada</h2><p class="hoja-texto">Cargando…</p>', function () {});
