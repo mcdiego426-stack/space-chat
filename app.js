@@ -1593,8 +1593,11 @@
       var botones = '<button class="boton-sec" id="prueba"' + (pl ? '' : ' disabled') + ' style="width:100%;height:46px">📱 Mandarme una prueba</button>' +
         '<button class="boton" id="mandar"' + (puede ? '' : ' disabled') + '>' + (cargando ? 'Revisando…' : bloqueo ? 'Disponible el ' + esc(cuando(p.bloqueadoHasta)) : !p.cuantos ? 'No hay a quién mandar' : 'Mandar a ' + p.cuantos + ' médicos') + '</button>';
       var cuerpo = aviso + paso1 + paso2 + paso3 + botones + '<div style="height:90px"></div>';
+      var mismaVista = !!app.querySelector('[data-plantilla], [data-fuente]');
+      var yPrev = mismaVista ? ((app.querySelector('.contenido') || {}).scrollTop || 0) : 0;
       if (esCompu()) app.innerHTML = barraEscritorio() + '<div class="contenido"><div class="pagina angosta"><h1>Nuevo lote</h1>' + cuerpo + '</div></div>';
       else app.innerHTML = '<header class="barra"><h1>Nuevo lote</h1></header><div class="contenido"><div class="pagina">' + cuerpo + '</div></div>' + tabs();
+      var contNuevo = app.querySelector('.contenido'); if (contNuevo && yPrev) contNuevo.scrollTop = yPrev;
       enlazarComunes();
       app.querySelectorAll('[data-plantilla]').forEach(function (b) {
         b.onclick = function () { E.plantillaSel = b.getAttribute('data-plantilla'); E.previa = null; dibujar(); cargar(); };
