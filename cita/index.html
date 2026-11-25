@@ -40,6 +40,13 @@
   .lugar-dir { font-size: 14px; line-height: 1.55; color: var(--sub); margin: 0 0 12px; }
   .enlace { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--tinta); text-decoration: none; border-bottom: 1px solid var(--tinta); padding-bottom: 3px; }
 
+  .opciones { display: grid; gap: 8px; }
+  .opcion { display: block; width: 100%; text-align: left; border: 1px solid var(--linea); background: #fff; border-radius: 4px; padding: 14px 16px; }
+  .opcion b { display: block; font-weight: 500; font-size: 15px; margin-bottom: 3px; }
+  .opcion small { display: block; font-size: 12px; color: var(--sub); line-height: 1.45; }
+  .opcion:hover { border-color: var(--tinta); }
+  .opcion.sel { background: var(--tinta); border-color: var(--tinta); color: #F5F5F3; }
+  .opcion.sel small { color: #C9C7C0; }
   .paso { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; }
   .paso i { font-style: normal; font-size: 11px; letter-spacing: .2em; color: var(--tenue); }
   .paso span { font-size: 11px; letter-spacing: .26em; text-transform: uppercase; }
@@ -111,13 +118,17 @@
 (function () {
   var API = 'https://script.google.com/macros/s/AKfycbwW0w87bI-1Q7JDD-YK_NIXlgeypNOVd6m_nb1QOENaZOapB-GHPfpmc-YQr5j-oj_C/exec';
   var WA = 'https://wa.me/525612422195';
-  var LUGAR = 'Médica Country';
-  var DIRECCION = 'Av. Circunvalación Jorge Álvarez del Castillo 1578, Country Club, Guadalajara, Jal.';
-  var MAPA = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Médica Country, Av. Circunvalación Jorge Álvarez del Castillo 1578, Guadalajara');
+  // Los mismos lugares (mismos id) están en el cerebro: LUGARES_CITA.
+  var LUGARES = [
+    { id: 'inverti', nombre: 'Oficinas Inverti', dir: 'Av. Universidad 1011, int. 504, Zapopan, Jal.', mapa: 'https://maps.app.goo.gl/Pmu4d16nVfQwN7EV9' },
+    { id: 'acueducto', nombre: 'Torre Médica Acueducto', dir: 'Anillo Periférico Nte. Manuel Gómez Morín 731, Puerta de Hierro, Zapopan, Jal.', mapa: 'https://maps.app.goo.gl/ABgg3jogXT39pPi18' },
+    { id: 'video', nombre: 'Videollamada', dir: 'Por Google Meet. Le mandamos el link por WhatsApp.', video: true }
+  ];
+  function lugarPorId(id) { for (var i = 0; i < LUGARES.length; i++) if (LUGARES[i].id === id) return LUGARES[i]; return null; }
   var MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   var DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   var token = new URLSearchParams(location.search).get('t') || '';
-  var E = { datos: null, mes: null, fecha: null, hora: null, aviso: '' };
+  var E = { datos: null, mes: null, lugar: null, fecha: null, hora: null, aviso: '' };
   var $ = function (id) { return document.getElementById(id); };
   var ICO_OK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   var ICO_MAL = '<svg viewBox="0 0 24 24"><path d="M12 6v8M12 17.5v.5"/></svg>';
@@ -133,8 +144,15 @@
   }
   function pie(html) { $('pie').hidden = !html; $('pieIn').innerHTML = html || ''; }
   function cuerpo(html) { $('cuerpo').innerHTML = '<div class="entra">' + html + '</div>'; }
-  function lugarCaja() {
-    return '<div class="caja"><p class="ceja">Ubicación</p><p class="lugar-nom">' + LUGAR + '</p><p class="lugar-dir">' + esc(DIRECCION) + '</p><a class="enlace" href="' + MAPA + '" target="_blank" rel="noopener">Cómo llegar ↗</a></div>';
+  function lugarCaja(l, meet) {
+    var liga = l.video ? (meet ? '<a class="enlace" href="' + esc(meet) + '" target="_blank" rel="noopener">Entrar a la videollamada ↗</a>' : '')
+      : '<a class="enlace" href="' + l.mapa + '" target="_blank" rel="noopener">Cómo llegar ↗</a>';
+    return '<div class="caja"><p class="ceja">' + (l.video ? 'Videollamada' : 'Ubicación') + '</p><p class="lugar-nom">' + esc(l.nombre) + '</p><p class="lugar-dir">' + esc(l.dir) + '</p>' + liga + '</div>';
+  }
+  function opcionesLugar() {
+    return '<div class="opciones">' + LUGARES.map(function (l) {
+      return '<button class="opcion' + (E.lugar === l.id ? ' sel' : '') + '" data-l="' + l.id + '" aria-pressed="' + (E.lugar === l.id) + '"><b>' + esc(l.nombre) + '</b><small>' + esc(l.video ? 'Google Meet, desde su celular o computadora' : l.dir) + '</small></button>';
+    }).join('') + '</div>';
   }
   function error(msg) {
     cuerpo('<div class="resumen"><div class="sello mal">' + ICO_MAL + '</div><p class="ceja">Agendar visita</p><h1>No pudimos abrir su agenda.</h1><p>' + esc(msg) + '</p></div>');
@@ -161,7 +179,7 @@
     function chips(lista) { return '<div class="horas">' + lista.map(function (h) { return '<button class="hora' + (E.hora === h.id ? ' sel' : '') + '" data-h="' + esc(h.id) + '">' + esc(h.title) + '</button>'; }).join('') + '</div>'; }
     var bloqueHoras = '';
     if (E.fecha) {
-      bloqueHoras = '<div class="paso" id="pasoHora"><i>02</i><span>Hora</span><em>' + esc(fechaLarga(E.fecha)) + '</em></div>' +
+      bloqueHoras = '<div class="paso" id="pasoHora"><i>03</i><span>Hora</span><em>' + esc(fechaLarga(E.fecha)) + '</em></div>' +
         (horas.length
           ? (manana.length ? '<p class="grupo">Mañana</p>' + chips(manana) : '') + (tarde.length ? '<p class="grupo">Tarde</p>' + chips(tarde) : '') +
             '<p class="nota">La visita dura ' + (d.duracion || 60) + ' minutos, aproximadamente.</p>'
@@ -170,18 +188,19 @@
     cuerpo(
       '<p class="ceja">Médica Country · Visita</p>' +
       '<h1>' + (d.saludo ? esc(d.saludo) + ', agende' : 'Agende') + ' su visita.</h1>' +
-      '<p class="intro">Elija el día y la hora que mejor le acomoden. Un asesor de Alto Espacio le mostrará los consultorios en persona.</p>' +
-      lugarCaja() +
+      '<p class="intro">Elija dónde, qué día y a qué hora. Un asesor de Alto Espacio le mostrará los consultorios en persona o por videollamada.</p>' +
       (E.aviso ? '<div class="aviso">' + esc(E.aviso) + '</div>' : '') +
-      '<div class="paso"><i>01</i><span>Día</span></div>' +
+      '<div class="paso"><i>01</i><span>Lugar</span></div>' + opcionesLugar() +
+      '<div class="paso"><i>02</i><span>Día</span></div>' +
       '<div class="cal"><div class="cal-top"><button id="antes" aria-label="Mes anterior"' + (puedeAntes ? '' : ' disabled') + '>‹</button><b>' + MESES[m - 1] + ' ' + y + '</b><button id="despues" aria-label="Mes siguiente"' + (puedeDespues ? '' : ' disabled') + '>›</button></div><div class="dias">' + celdas + '</div>' +
       '<p class="nota">Los días con recuadro tienen horarios libres.</p></div>' +
       bloqueHoras
     );
-    var listo = E.fecha && E.hora;
-    pie('<p class="elegido">' + (listo ? '<b>' + esc(fechaLarga(E.fecha)) + '</b> · ' + esc(horaTexto(E.hora)) : E.fecha ? 'Ahora elija una hora' : 'Elija un día para ver los horarios') + '</p>' +
+    var listo = E.lugar && E.fecha && E.hora, lg = lugarPorId(E.lugar);
+    pie('<p class="elegido">' + (listo ? '<b>' + esc(fechaLarga(E.fecha)) + '</b> · ' + esc(horaTexto(E.hora)) + ' · ' + esc(lg.nombre) : !E.lugar ? 'Elija dónde quiere su visita' : E.fecha ? 'Ahora elija una hora' : 'Elija un día para ver los horarios') + '</p>' +
       '<button class="boton" id="seguir"' + (listo ? '' : ' disabled') + '>Continuar</button>' +
       '<small class="legal">Sus datos solo se usan para agendar su visita · <a href="https://mcdiego426-stack.github.io/space-chat/privacidad.html" target="_blank" rel="noopener">Aviso de privacidad</a></small>');
+    [].forEach.call(document.querySelectorAll('[data-l]'), function (b) { b.onclick = function () { E.lugar = b.getAttribute('data-l'); var y0 = window.scrollY; pantallaElegir(); window.scrollTo(0, y0); }; });
     [].forEach.call(document.querySelectorAll('[data-d]'), function (b) { b.onclick = function () { E.fecha = b.getAttribute('data-d'); E.hora = null; E.aviso = ''; pantallaElegir(); var h = $('pasoHora'); if (h) h.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; });
     [].forEach.call(document.querySelectorAll('[data-h]'), function (b) { b.onclick = function () { E.hora = b.getAttribute('data-h'); var y0 = window.scrollY; pantallaElegir(); window.scrollTo(0, y0); }; });
     $('antes').onclick = function () { E.mes = m === 1 ? { y: y - 1, m: 12 } : { y: y, m: m - 1 }; pantallaElegir(); };
@@ -194,15 +213,15 @@
     window.scrollTo(0, 0);
     cuerpo('<p class="ceja">Confirmar visita</p><h1>' + esc(fechaLarga(E.fecha)) + '<br>' + esc(horaTexto(E.hora)) + '</h1>' +
       '<p class="intro">Revise los datos y confirme. Le apartamos el horario de inmediato.</p>' +
-      '<div class="fila"><span>Lugar</span><div>' + LUGAR + '<br><small style="color:var(--sub)">' + esc(DIRECCION) + '</small></div></div>' +
+      '<div class="fila"><span>' + (lugarPorId(E.lugar).video ? 'Modalidad' : 'Lugar') + '</span><div>' + esc(lugarPorId(E.lugar).nombre) + '<br><small style="color:var(--sub)">' + esc(lugarPorId(E.lugar).dir) + '</small></div></div>' +
       '<div class="fila"><span>Duración</span><div>' + (d.duracion || 60) + ' minutos</div></div>' +
       '<div class="fila"><span>Le atiende</span><div>Un asesor de Alto Espacio Hábitat</div></div>');
     pie('<button class="boton" id="confirmar">Confirmar visita</button><button class="boton sec" id="cambiar">Cambiar día u hora</button>');
     $('cambiar').onclick = function () { pantallaElegir(); window.scrollTo(0, 0); };
     $('confirmar').onclick = function () {
       var b = $('confirmar'); b.disabled = true; b.textContent = 'Apartando su horario…'; $('cambiar').hidden = true;
-      api({ t: token, accion: 'agendar', fecha: E.fecha, hora: E.hora }).then(function (r) {
-        if (r.ok) return pantallaListo(r.resumen);
+      api({ t: token, accion: 'agendar', lugar: E.lugar, fecha: E.fecha, hora: E.hora }).then(function (r) {
+        if (r.ok) return pantallaListo(r.resumen, r.meet);
         E.datos.libres = r.libres || E.datos.libres; E.hora = null;
         E.aviso = (r.datos && r.datos.aviso) || 'Ese horario se acaba de ocupar. Elija otro, por favor.';
         pantallaElegir(); window.scrollTo(0, 0);
@@ -213,13 +232,13 @@
     var a = document.createElement('div'); a.className = 'aviso'; a.textContent = msg;
     $('cuerpo').insertBefore(a, $('cuerpo').firstChild); window.scrollTo(0, 0);
   }
-  function pantallaListo(resumen) {
+  function pantallaListo(resumen, meet) {
     var d = E.datos;
     window.scrollTo(0, 0);
     cuerpo('<div class="resumen"><div class="sello">' + ICO_OK + '</div><p class="ceja">Visita agendada</p><h1>¡Listo' + (d.saludo ? ', ' + esc(d.saludo) : '') + '!</h1>' +
       '<p>Le esperamos el <b>' + esc(resumen) + '</b>' + (/\.$/.test(resumen) ? '' : '.') + '</p></div>' +
-      '<div style="margin-top:22px">' + lugarCaja() + '</div>' +
-      '<p class="nota" style="text-align:center">También le mandamos la confirmación por WhatsApp.</p>');
+      '<div style="margin-top:22px">' + lugarCaja(lugarPorId(E.lugar), meet) + '</div>' +
+      '<p class="nota" style="text-align:center">' + (lugarPorId(E.lugar).video ? 'También le mandamos el link de la videollamada por WhatsApp.' : 'También le mandamos la confirmación por WhatsApp.') + '</p>');
     pie('<a class="boton" href="' + WA + '">Volver a WhatsApp</a>');
   }
 
