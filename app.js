@@ -423,9 +423,16 @@
         .then(function () { E.marcoGuardando = false; refrescarListaChats(); });
     };
   }
-  function cargarMarco() {
+  // Guarda el estado de Marco (piloto prendido o apagado) sin borrar sus sugerencias.
+  function ponerEstadoMarco(r) {
+    var antes = E.marco || {};
+    E.marco = r || {};
+    E.marco.propuestas = antes.propuestas || {};
+    E.marco.cargado = antes.cargado || 0;
+  }
+  function cargarEstadoMarco() {
     if (E.marcoPedido || DEMO) return; E.marcoPedido = true;
-    api('marcoEstado').then(function (r) { E.marco = r; refrescarListaChats(); }).catch(function () { E.marcoPedido = false; });
+    api('marcoEstado').then(function (r) { ponerEstadoMarco(r); refrescarListaChats(); }).catch(function () { E.marcoPedido = false; });
   }
 
   // ================================================================== CHATS
@@ -485,8 +492,10 @@
     E.telSel = tel;
     // Si ya está pintada la estructura correcta, solo cambiamos lo necesario (no se reconstruye toda la pantalla).
     var clave = compu ? 'chats-compu' : (tel ? 'conv-cel' : 'chats-cel');
-    if (!compu && E.vista === 'chats-cel' && tel) { var lc = $('listaChats'); E.scrollLista = lc ? lc.scrollTop : 0; E.vengoDeLista = true; }
-    if (!compu && !tel) E.vengoDeLista = false;
+    if (!compu && E.vista === 'chats-cel' && tel) { var lc = $('listaChats'); E.scrollLista = lc ? lc.scrollTop : 0; E.vengoDeLista = true; E.vengoDeContactos = false; }
+    // Si abriste al doctor desde Contactos, "Volver" regresa a Contactos (con tu búsqueda y en el mismo lugar).
+    if (!compu && E.vista === 'contactos-cel' && tel) { var lcc = $('listaC'); E.scrollContactos = lcc ? lcc.scrollTop : 0; E.vengoDeContactos = true; E.vengoDeLista = false; }
+    if (!compu && !tel) { E.vengoDeLista = false; E.vengoDeContactos = false; }
     if (E.vista !== clave) {
       E.vista = clave;
       if (compu) {
@@ -507,7 +516,7 @@
       enlazarChips();
       enlazarPerfil();
     }
-    cargarMarco();
+    cargarEstadoMarco();
     var l = $('listaChats');
     if (l) {
       l.innerHTML = listaChatsHtml();
@@ -756,7 +765,9 @@
       aviso = c.etapa === 'BAJA'
         ? '<div class="ventana cerrada">Pidió BAJA: no se le puede volver a escribir.</div>'
         : resto ? '<div class="ventana">' + ICON.reloj + '<span><b>Puedes escribirle libre</b> por ' + resto + '</span></div>'
-          : (cv ? '<div class="ventana cerrada">Pasaron más de 24 h desde su último mensaje: solo se puede mandar plantilla.</div>' : '');
+          : (cv ? (cv.mensajes.some(function (x) { return x.direccion === 'entrada' && canalDe(x) === 'wa'; })
+            ? '<div class="ventana cerrada">Pasaron más de 24 h desde su último mensaje: solo se puede mandar plantilla.</div>'
+            : '<div class="ventana cerrada">' + (cv.mensajes.some(function (x) { return canalDe(x) === 'wa'; }) ? 'Todavía no te ha contestado' : 'Todavía no le has escrito') + ': por WhatsApp solo se le puede mandar plantilla.</div>') : '');
       ph = puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla');
     }
     aviso += marcoResumen(c);
@@ -782,7 +793,7 @@
         '<button class="enviar" id="btnEnviar" aria-label="Enviar"' + (puede ? '' : ' disabled') + '>' + ICON.mandar + '</button></div></form>';
       enlazarConv();
       medirConv(panel);
-      var mm = $('mensajes'); mm.scrollTop = mm.scrollHeight;
+      var mm = $('mensajes'); mm._html = cuerpoMsgs; mm.scrollTop = mm.scrollHeight;
     } else {
       $('avisoVentana').innerHTML = aviso;
       var cn = $('canales'); if (cn) { cn.outerHTML = pestanasCanal(c, cv); enlazarCanales(); }
@@ -790,8 +801,7 @@
       ['convNombre', 'cabNombre'].forEach(function (id) { var x = $(id); if (x) x.textContent = nombreDe(c); });
       ['convSub', 'cabSub'].forEach(function (id) { var x = $(id); if (x) x.textContent = sub; });
       var ce = $('cabEtapa'); if (ce) { ce.className = 'badge e-' + c.etapa + ' badge-btn'; ce.textContent = c.etapa + ' ▾'; }
-      m.innerHTML = cuerpoMsgs;
-      if (cercaDelFinal) m.scrollTop = m.scrollHeight;
+      if (ponerMensajes(m, cuerpoMsgs) && cercaDelFinal) m.scrollTop = m.scrollHeight;
       var inp = $('msg'), btn = $('btnEnviar');
       inp.disabled = !puede; btn.disabled = !puede || !inp.value.trim();
       ['btnMas', 'btnCamara', 'btnMicro', 'btnMarco'].forEach(function (id) { var x = $(id); if (x) x.disabled = !puede; });
@@ -800,6 +810,26 @@
     enlazarReintentos();
     cargarMedios();
     pintarFicha(c);
+  }
+
+  // Cambia los mensajes en pantalla solo si hay algo distinto. Conserva lo que estabas viendo:
+  // la plantilla abierta ("Ver mensaje completo") y el audio que estés escuchando.
+  function ponerMensajes(m, html) {
+    if (m._html === html) return false;
+    var abiertas = [], sonando = [];
+    m.querySelectorAll('.globo.abierta[data-m]').forEach(function (g) { abiertas.push(g.getAttribute('data-m')); });
+    m.querySelectorAll('audio').forEach(function (a) { var g = a.closest('.globo[data-m]'); if (g && !a.paused) sonando.push([g.getAttribute('data-m'), a]); });
+    m.innerHTML = html; m._html = html;
+    abiertas.forEach(function (k) {
+      var g = m.querySelector('.globo[data-m="' + k + '"]'); if (!g) return;
+      g.classList.add('abierta');
+      var b = g.querySelector('.ver-plantilla'); if (b) { b.setAttribute('data-t', b.textContent); b.textContent = 'Ver menos'; }
+    });
+    sonando.forEach(function (x) {
+      var g = m.querySelector('.globo[data-m="' + x[0] + '"]'), nuevo = g && g.querySelector('audio, .medio.audio');
+      if (nuevo) nuevo.replaceWith(x[1]);
+    });
+    return true;
   }
 
   // En el celular, el encabezado y la barra de escribir flotan sobre los mensajes (como WhatsApp):
@@ -818,13 +848,12 @@
 
   function volverALista(ev) {
     if (ev) ev.preventDefault();
-    if (E.vengoDeLista) history.back(); else ir('chats');
+    if (E.vengoDeLista || E.vengoDeContactos) history.back(); else ir('chats');
   }
   function enlazarCanales() {
     app.querySelectorAll('[data-canal]').forEach(function (b) {
       b.onclick = function () {
         E.canales = E.canales || {}; E.canales[E.telSel] = b.getAttribute('data-canal');
-        var inp = $('msg'); if (inp) inp.value = '';
         pintarConv(true);
       };
     });
@@ -833,7 +862,10 @@
     enlazarCanales();
     var inp = $('msg'), btn = $('btnEnviar');
     app.querySelectorAll('.volver').forEach(function (a) { a.onclick = volverALista; });
+    // Lo que escribes se guarda por chat y por pestaña (WhatsApp / Correo), como en WhatsApp.
+    function claveBorrador() { return E.telSel + '|' + canalActual(E.telSel); }
     function ajustar() {
+      if (!inp.disabled) { E.borradores = E.borradores || {}; if (inp.value) E.borradores[claveBorrador()] = inp.value; else delete E.borradores[claveBorrador()]; }
       inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; btn.disabled = inp.disabled || !inp.value.trim();
       // Como WhatsApp: con texto se ve el botón de enviar; sin texto, cámara y micrófono.
       inp.parentNode.classList.toggle('con-texto', !!inp.value.trim());
@@ -869,6 +901,7 @@
       }).catch(function (e) { toast(e.message, 'error'); })
         .then(function () { var x = $('btnMarco'); if (x) { x.disabled = inp.disabled; x.textContent = antes; } });
     };
+    if (!inp.disabled) inp.value = (E.borradores || {})[claveBorrador()] || '';
     inp.oninput = ajustar; ajustar();
     inp.onkeydown = function (ev) { if (ev.key === 'Enter' && !ev.shiftKey && esCompu()) { ev.preventDefault(); $('formMsg').requestSubmit ? $('formMsg').requestSubmit() : $('formMsg').onsubmit(ev); } };
     $('formMsg').onsubmit = function (ev) {
@@ -1455,7 +1488,9 @@
       bc.oninput = function () { clearTimeout(t); t = setTimeout(function () { E.buscaContacto = bc.value; pintarListaContactos(true); }, 120); };
       $('archivo').onchange = importarArchivo;
     }
-    pintarListaContactos(true);
+    var volviendo = E.vengoDeContactos; E.vengoDeContactos = false;
+    pintarListaContactos(!volviendo);
+    if (volviendo) { var lcv = $('listaC'); if (lcv) lcv.scrollTop = E.scrollContactos || 0; }
     api('listarContactos').then(function (l) {
       var cambio = firma(l) !== firma(E.contactos);
       E.contactos = l; E.listos.contactos = true;
@@ -1682,12 +1717,12 @@
       var bm = $('btnMarcoAuto');
       if (bm) bm.onclick = function () {
         bm.disabled = true;
-        api('marcoActivar', !E.marco.auto).then(function (r) { E.marco = r; dibujar(); toast(r.auto ? 'Marco ya contesta solo' : 'Marco apagado'); })
+        api('marcoActivar', !E.marco.auto).then(function (r) { ponerEstadoMarco(r); dibujar(); toast(r.auto ? 'Marco ya contesta solo' : 'Marco apagado'); })
           .catch(function (e) { toast(e.message, 'error'); bm.disabled = false; });
       };
     }
     dibujar();
-    api('marcoEstado').then(function (r) { E.marco = r; dibujar(); }).catch(function () {});
+    api('marcoEstado').then(function (r) { ponerEstadoMarco(r); dibujar(); }).catch(function () {});
     api('semaforo').then(function (s) { E.semaforo = s; dibujar(); }).catch(function (e) { toast(e.message, 'error'); });
   }
 
