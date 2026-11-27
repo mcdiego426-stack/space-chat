@@ -1,5 +1,5 @@
 /* Space Chat — service worker: siempre intenta la versión más nueva; si no hay internet (o tarda mucho), abre con lo guardado. También muestra notificaciones. */
-var CACHE = 'space-chat-v23';  // 27 nov: letras visibles en el buscador
+var CACHE = 'space-chat-v24';  // 27 nov: piloto, volver a Contactos, borradores, chat sin redibujar
 var ARCHIVOS = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
