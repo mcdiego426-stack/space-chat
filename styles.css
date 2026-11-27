@@ -65,7 +65,8 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
 .tab:active svg { transform: scale(.88); }
 .tab.activo { color: var(--verde); font-weight: 700; }
 .tab .punto { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--acento); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
-.buscar { width: 100%; height: 40px; border-radius: 20px; border: none; padding: 0 16px; font-size: 16px; background: #fff; outline: none; }
+.buscar { width: 100%; height: 40px; border-radius: 20px; border: none; padding: 0 16px; font-size: 16px; background: #fff; outline: none; color: var(--texto); -webkit-text-fill-color: var(--texto); caret-color: var(--verde); }
+.buscar::placeholder { color: #8A9590; -webkit-text-fill-color: #8A9590; }
 .buscar.borde { border: 1px solid #D5DDD9; background: #F7F9F8; transition: border-color var(--rapido), background var(--rapido); }
 .buscar.borde:focus { border-color: var(--verde); background: #fff; }
 .badge.demo { background: #FFF1DB; color: #8A4B08; vertical-align: middle; height: 22px; font-size: 11px; }
