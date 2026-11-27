@@ -1,5 +1,5 @@
 /* Space Chat — service worker: siempre intenta la versión más nueva; si no hay internet (o tarda mucho), abre con lo guardado. También muestra notificaciones. */
-var CACHE = 'space-chat-v25';  // 27 nov: botón para mandar la plantilla a un solo doctor
+var CACHE = 'space-chat-v26';  // 27 nov: fallas medianas y menores
 var ARCHIVOS = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
