@@ -767,7 +767,7 @@
         : resto ? '<div class="ventana">' + ICON.reloj + '<span><b>Puedes escribirle libre</b> por ' + resto + '</span></div>'
           : (cv ? (cv.mensajes.some(function (x) { return x.direccion === 'entrada' && canalDe(x) === 'wa'; })
             ? '<div class="ventana cerrada">Pasaron más de 24 h desde su último mensaje: solo se puede mandar plantilla.</div>'
-            : '<div class="ventana cerrada">' + (cv.mensajes.some(function (x) { return canalDe(x) === 'wa'; }) ? 'Todavía no te ha contestado' : 'Todavía no le has escrito') + ': por WhatsApp solo se le puede mandar plantilla.</div>') : '');
+            : '<div class="ventana cerrada">' + (cv.mensajes.some(function (x) { return canalDe(x) === 'wa'; }) ? 'Todavía no te ha contestado' : 'Todavía no le has escrito') + ': por WhatsApp solo se le puede mandar plantilla.</div>' + (puedePlantilla(c, cv) ? '<button type="button" class="boton" id="btnPlantilla" style="display:block;width:calc(100% - 16px);margin:6px 8px;height:42px;font-size:15px">📨 Mandarle la plantilla</button>' : '')) : '');
       ph = puede ? 'Escribe un mensaje' : (c.etapa === 'BAJA' ? 'Pidió BAJA' : 'Solo con plantilla');
     }
     aviso += marcoResumen(c);
@@ -807,6 +807,7 @@
       ['btnMas', 'btnCamara', 'btnMicro', 'btnMarco'].forEach(function (id) { var x = $(id); if (x) x.disabled = !puede; });
       inp.placeholder = ph;
     }
+    var bpl = $('btnPlantilla'); if (bpl) bpl.onclick = function () { elegirPlantillaPara(tel); };
     enlazarReintentos();
     cargarMedios();
     pintarFicha(c);
@@ -1272,6 +1273,58 @@
       m.estado = 'error'; m.error = e.message.replace(/^Meta: /, '');
       if (E.telSel === tel) pintarConv(false); else toast('No se envió: ' + e.message, 'error');
     });
+  }
+  // ---------- Plantilla a UN solo doctor desde su chat (solo a quien nunca se le ha escrito).
+  function puedePlantilla(c, cv) {
+    if (!c || !cv || c.etapa !== 'Nuevo' || c.lote || String(c.tipo || '') === 'Clínica') return false;
+    return !cv.mensajes.some(function (x) { return canalDe(x) === 'wa'; });
+  }
+  function textoPlantillaPara(p, c) {
+    var ap = String(c.apellido || c.nombre || '').trim();
+    var v = /Dr\(a\)\.?\s*\{\{/.test(p.cuerpo) ? ap : ((String(c.titulo || '').trim() || 'Dr(a).') + ' ' + ap).trim();
+    return p.cuerpo.replace(/\{\{\s*[\w]+\s*\}\}/, v);
+  }
+  function elegirPlantillaPara(tel) {
+    var c = contactoDe(tel); if (!c) return;
+    abrirHoja('<h2 class="hoja-titulo">Mandar plantilla</h2><p class="hoja-texto">Cargando plantillas…</p>');
+    (E.plantillas && E.plantillas.length ? Promise.resolve(E.plantillas) : api('plantillasAprobadas')).then(function (l) {
+      l = l || []; E.plantillas = l;
+      var h = $('hoja') && $('hoja').querySelector('.hoja'); if (!h) return;
+      if (!l.length) { h.innerHTML = '<div class="hoja-asa"></div><h2 class="hoja-titulo">No hay plantillas aprobadas</h2><p class="hoja-texto">Cuando Meta apruebe una, aparece aquí.</p>'; return; }
+      var sel = 0;
+      function nombrePl(p) { var n = String(p.nombre || '').replace(/_/g, ' '); return n.charAt(0).toUpperCase() + n.slice(1); }
+      function dibujarHoja() {
+        h.innerHTML = '<div class="hoja-asa"></div><h2 class="hoja-titulo">Plantilla para ' + esc(nombreDe(c)) + '</h2>' +
+          (l.length > 1 ? '<div class="chips claros" style="margin-bottom:10px">' + l.map(function (p, i) { return '<button type="button" class="chip' + (i === sel ? ' activo' : '') + '" data-pl="' + i + '">' + esc(nombrePl(p)) + '</button>'; }).join('') + '</div>' : '') +
+          '<div class="globo salida" style="max-width:100%;margin:0 0 8px;max-height:40vh;overflow:auto"><span style="white-space:pre-wrap;font-size:14px">' + esc(textoPlantillaPara(l[sel], c)) + '</span></div>' +
+          '<p class="nota">Cuesta como $0.85 y cuenta para el tope del día. No se puede deshacer.</p>' +
+          '<div class="hoja-botones"><button class="boton-sec" data-r="no">Cancelar</button><button class="boton" data-r="si">Mandar</button></div>';
+        h.querySelectorAll('[data-pl]').forEach(function (b) { b.onclick = function () { sel = Number(b.getAttribute('data-pl')); dibujarHoja(); }; });
+        h.querySelector('[data-r="no"]').onclick = function () { cerrarHoja(); };
+        h.querySelector('[data-r="si"]').onclick = function () { var p = l[sel]; cerrarHoja(); mandarPlantillaA(tel, p, textoPlantillaPara(p, c)); };
+      }
+      dibujarHoja();
+    }).catch(function (e) { cerrarHoja(); toast(e.message, 'error'); });
+  }
+  function mandarPlantillaA(tel, p, txt) {
+    var cv = E.convs[tel] || (E.convs[tel] = { contacto: contactoDe(tel), mensajes: [], ventanaAbierta: false, _t: Date.now() });
+    var m = { direccion: 'salida', tipo: 'plantilla', texto: txt, estado: 'pendiente', hora: new Date().toISOString(), _tmp: true };
+    m._reenviar = function () {
+      api('enviarPlantillaA', tel, p.nombre, p.idioma).then(function (r) {
+        m.estado = 'enviado'; if (r && r.hora) m.hora = r.hora; if (r && r.texto) m.texto = r.texto;
+        toast('Plantilla enviada');
+        aplicarEtapa(tel, 'Contactado');
+        guardarCache();
+        setTimeout(sincronizar, 1500);
+      }).catch(function (e) {
+        m.estado = 'error'; m.error = e.message.replace(/^Meta: /, '');
+        if (E.telSel === tel) pintarConv(false); else toast('No se envió la plantilla: ' + e.message, 'error');
+      });
+    };
+    cv.mensajes.push(m);
+    moverArriba(tel, 'Tú: Plantilla', m.hora);
+    pintarConv(false);
+    m._reenviar();
   }
   function moverArriba(tel, ultimo, horaIso) {
     var i = -1;
