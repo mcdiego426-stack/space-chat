@@ -20,7 +20,7 @@
   function $(id) { return document.getElementById(id); }
   function toast(t, tipo) {
     var el = $('toast'); el.textContent = t; el.className = 'ver' + (tipo ? ' ' + tipo : '');
-    clearTimeout(toast._t); toast._t = setTimeout(function () { el.className = ''; }, 3200);
+    clearTimeout(toast._t); toast._t = setTimeout(function () { el.className = ''; }, Math.max(3200, String(t).length * 55));
   }
   function esCompu() { return window.matchMedia('(min-width: 900px)').matches; }
   function nombreDe(c) { return ((c.titulo ? c.titulo + ' ' : '') + (c.nombre || '') + ' ' + (c.apellido || '')).trim() || telBonito(c.telefono); }
@@ -120,11 +120,14 @@
     }
     var cuerpo = { fn: fn, args: args };
     if (E.sesion && E.sesion.sesion) cuerpo.sesion = E.sesion.sesion;
-    return fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(cuerpo) })
-      .then(function (r) { return r.json(); }, function () { throw new Error('Sin conexión. Revisa tu internet.'); })
+    // Tiempo límite: si el cerebro no contesta, se avisa en vez de quedarse cargando para siempre.
+    var limite = fn === 'mandarLote' ? 330000 : /^(enviarArchivo|reenviarArchivo|archivo|importarContactos)$/.test(fn) ? 120000 : 45000;
+    var ctl = window.AbortController ? new AbortController() : null, reloj = ctl ? setTimeout(function () { ctl.abort(); }, limite) : null;
+    return fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(cuerpo), signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { clearTimeout(reloj); return r.json(); }, function (e) { clearTimeout(reloj); throw new Error(e && e.name === 'AbortError' ? 'Tardó demasiado en contestar: revisa si sí se hizo antes de reintentar.' : 'Sin conexión. Revisa tu internet.'); })
       .then(function (j) {
         if (!j.ok) {
-          if (/Sesión|Inicia sesión/.test(j.mensaje)) cerrarSesion();
+          if (/Sesión|Inicia sesión/.test(j.mensaje)) { cerrarSesion(); toast('Tu sesión venció: vuelve a entrar con Google.', 'error'); }
           throw new Error(j.mensaje || 'Error');
         }
         return j.data;
@@ -330,7 +333,7 @@
   window.addEventListener('hashchange', function () { cerrarHoja(true); pintar(); });
   window.matchMedia('(min-width: 900px)').addEventListener('change', function () { E.vista = ''; pintar(); });
   function seccion() { var r = ruta(); return r.indexOf('chat/') === 0 ? 'chats' : r; }
-  function totalSinLeer() { return E.chats.reduce(function (n, c) { return n + (Number(c.sinLeer) || 0); }, 0); }
+  function totalSinLeer() { var mio = enMarco() ? null : yo().id; return E.chats.reduce(function (n, c) { return n + (!mio || asesorDe(c) === mio ? (Number(c.sinLeer) || 0) : 0); }, 0); }
 
   function tabs() {
     var s = seccion(), n = totalSinLeer();
@@ -403,10 +406,10 @@
   function perfilBarra() {
     var y = yo(), m = E.marco;
     var on = !!(m && m.auto);
-    var piloto = enMarco() ? '<button type="button" id="btnPiloto" role="switch" aria-checked="' + on + '" title="Marco contesta solo a los doctores" style="display:inline-flex;align-items:center;gap:8px;border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:inherit;padding:4px 2px;cursor:pointer' + (m ? '' : ';opacity:.5') + '">✈️ Piloto automático' +
+    var piloto = enMarco() ? '<button type="button" id="btnPiloto" role="switch" aria-checked="' + on + '" title="Marco contesta solo a los doctores" style="display:inline-flex;align-items:center;gap:8px;border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:inherit;padding:4px 2px;cursor:pointer' + (m ? '' : ';opacity:.5') + '">✈️ Piloto' +
       '<span style="position:relative;display:inline-block;width:44px;height:26px;border-radius:13px;background:' + (on ? '#34C759' : '#C9D1CD') + ';transition:background .2s"><span style="position:absolute;top:3px;left:' + (on ? '21px' : '3px') + ';width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .2s"></span></span></button>' : '';
-    return '<div id="perfilBarra" class="chips' + (esCompu() ? ' claros' : '') + '" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px">' +
-      (y ? '<button type="button" class="chip' + (enMarco() ? ' activo' : '') + '" data-perfil="marco">🤖 Marco</button><button type="button" class="chip' + (enMarco() ? '' : ' activo') + '" data-perfil="yo">👤 ' + esc(y.nombre) + '</button>' : '') +
+    return '<div id="perfilBarra" class="chips' + (esCompu() ? ' claros' : '') + '" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0;padding:0">' +
+      (y ? '<button type="button" class="chip' + (enMarco() ? ' activo' : '') + '" data-perfil="marco">🤖 Marco</button><button type="button" class="chip' + (enMarco() ? '' : ' activo') + '" data-perfil="yo">👤 ' + esc(y.corto || y.nombre) + '</button>' : '') +
       piloto + '</div>';
   }
   function enlazarPerfil() {
@@ -463,10 +466,13 @@
     if (!E.listos.chats && !E.chats.length) return esqueletoLista(7);
     var l = chatsFiltrados();
     if (l.length) return l.map(function (c) { return filaChat(c, c.telefono === E.telSel); }).join('');
-    if (E.buscaChat || E.filtroChat !== 'Todos') return '<p class="vacio">No hay chats con ese filtro.</p>';
+    if (E.buscaChat) return '<p class="vacio">No hay chats con «' + esc(E.buscaChat) + '».<br><a href="#contactos" data-buscar-contacto style="color:var(--verde);font-weight:600">Buscarlo en Contactos →</a></p>';
+    if (E.filtroChat !== 'Todos') return '<p class="vacio">No hay chats con ese filtro.</p>';
     if (!enMarco()) return '<p class="vacio">Todavía no tienes doctores asignados.<br>Marco te los pasa cuando agendan cita contigo.</p>';
     return '<p class="vacio">Todavía no hay chats.<br>Cuando mandes un lote o un doctor te escriba, aparecerá aquí.</p>';
   }
+  // "Buscarlo en Contactos": lleva lo que escribiste al buscador de Contactos.
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-buscar-contacto]')) { E.buscaContacto = E.buscaChat; E.filtroEtapa = ''; } }, true);
   function chipsChat(oscuro) {
     var mio = enMarco() ? null : yo().id;
     var sinLeer = E.chats.filter(function (c) { return Number(c.sinLeer) > 0 && (!mio || asesorDe(c) === mio); }).length;
@@ -711,12 +717,12 @@
           html += '<div data-m="' + mi + '" class="globo salida canal-' + m.tipo + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
             (m.tipo === 'correo' ? '<span class="marca">✉️ ' + esc(dc.asunto || 'Correo') + '</span><span class="txt plegado">' + esc(m.texto) + '</span>' + (String(m.texto || '').length > 280 ? '<button type="button" class="ver-plantilla">Ver correo completo</button>' : '') : '<span class="txt">' + esc(m.texto) + '</span>') +
             '<span class="meta">' + hora(m.hora) + ' ' + (est === 'pendiente' ? vista : est === 'error' ? '' : '<span class="estado">' + CHECK1 + '</span>') + '</span></div>' +
-            (est === 'error' ? '<div class="aviso-centro">No se envió: ' + esc(m.error || '') + '</div>' : '');
+            (est === 'error' ? (m._reenviar ? '<button class="reintentar-msg" data-i="' + mi + '">No se envió · ' + esc(m.error || '') + ' <b>Reintentar</b></button>' : '<div class="aviso-centro">No se envió: ' + esc(m.error || '') + '</div>') : '');
           return;
         }
         html += '<div data-m="' + mi + '" class="globo salida' + (esMedio(m) ? ' con-medio' : '') + (est === 'pendiente' ? ' pendiente' : '') + (est === 'error' ? ' con-error' : '') + '">' +
           (m.tipo === 'plantilla'
-            ? '<span class="marca">Plantilla · primer contacto</span><span class="txt plegado">' + esc(textoPlantilla(m, c)) + '</span><button type="button" class="ver-plantilla">Ver mensaje completo</button>'
+            ? '<span class="marca">' + (/Espero que se encuentre bien/.test(textoPlantilla(m, c)) ? 'Plantilla · primer contacto' : 'Plantilla') + '</span><span class="txt plegado">' + esc(textoPlantilla(m, c)) + '</span><button type="button" class="ver-plantilla">Ver mensaje completo</button>'
             : medioHtml(m) + (m.texto && m.tipo !== 'location' && m.tipo !== 'contacts' ? '<span class="txt">' + esc(m.texto) + '</span>' : '')) +
           '<span class="meta">' + hora(m.hora) + ' ' + vista + '</span></div>' +
           (est === 'error' ? '<button class="reintentar-msg" data-i="' + (m._idx != null ? m._idx : i) + '">No se envió · ' + esc(m.error || '') + ' <b>Reintentar</b></button>' : '');
@@ -1094,7 +1100,9 @@
       return '<button type="button" class="ubic-op" data-lat="' + x.lat + '" data-lng="' + x.lng + '" data-nombre="' + esc(x.nombre) + '" data-dir="' + esc(x.direccion || '') + '"><span class="ubic-ic">' + ICON.ubicacion + '</span><span class="medio-textos"><b>' + esc(x.nombre) + '</b><span>' + esc(x.direccion || (x.dist != null ? 'A ' + x.dist + ' m' : '')) + '</span></span></button>';
     }
     function pintarLugares(l, vacio) { lista.innerHTML = l.length ? l.map(filaLugar).join('') : '<p class="nota">' + vacio + '</p>'; }
+    var mandado = false;
     function mandar(lat, lng, nombre, direccion) {
+      if (mandado) return; mandado = true;
       cerrarHoja();
       enviarMedio(tel, { tipo: 'location', texto: nombre || '', archivo: { lat: lat, lng: lng, nombre: nombre || '', direccion: direccion || '' } }, 'Tú: 📍 ' + (nombre || 'Ubicación'), function () {
         return api('enviarUbicacion', tel, lat, lng, nombre || '', direccion || '');
@@ -1152,6 +1160,8 @@
       if (u === 'cerrar') return cerrarHoja();
       if (u === 'recargar' || u === 'yo') { h.classList.remove('movida'); return ubicarme(); }
       if (u === 'actual') {
+        if (mandado || h._preparando) return;
+        if (movida || yo) { h._preparando = true; h.querySelector('#precUbic').textContent = 'Preparando la ubicación…'; }
         if (movida && mapa) { var c = mapa.getCenter(), la = +c.lat.toFixed(6), lo = +c.lng.toFixed(6); return direccionDe(la, lo).then(function (dir) { mandar(la, lo, '', dir); }); }
         if (!yo) return toast('Todavía no tengo tu ubicación');
         return direccionDe(yo.lat, yo.lng).then(function (dir) { mandar(yo.lat, yo.lng, '', dir); });
@@ -1187,7 +1197,7 @@
       var reloj = setInterval(function () { var s = Math.floor((Date.now() - inicio) / 1000); barra.querySelector('.grab-tiempo').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }, 500);
       rec.ondataavailable = function (e) { if (e.data && e.data.size) partes.push(e.data); };
       rec.onstop = function () {
-        clearInterval(reloj); stream.getTracks().forEach(function (t) { t.stop(); }); barra.remove();
+        clearInterval(reloj); window.removeEventListener('hashchange', alSalir); stream.getTracks().forEach(function (t) { t.stop(); }); barra.remove();
         if (cancelado || !partes.length) return;
         var blob = new Blob(partes, { type: mime.split(';')[0] });
         var nombre = 'audio' + (mime.indexOf('ogg') > -1 ? '.ogg' : '.m4a');
@@ -1197,6 +1207,9 @@
           });
         });
       };
+      // Si sales del chat mientras grabas, se cancela y se apaga el micrófono.
+      var alSalir = function () { if (rec.state !== 'inactive') { cancelado = true; rec.stop(); } };
+      window.addEventListener('hashchange', alSalir, { once: true });
       barra.querySelector('[data-g="cancelar"]').onclick = function () { cancelado = true; rec.stop(); };
       barra.querySelector('[data-g="enviar"]').onclick = function () { rec.stop(); };
       rec.start();
@@ -1246,15 +1259,18 @@
       cv.mensajes.push(m);
       moverArriba(tel, 'Tú: ✉️ ' + asunto, m.hora);
       pintarConv(false);
-      api('enviarCorreo', tel, asunto, cuerpo).then(function (r) {
-        m.estado = 'enviado'; if (r && r.hora) m.hora = r.hora;
-        if (E.telSel === tel) pintarConv(false);
-        guardarCache(); toast('Correo enviado');
-        setTimeout(sincronizar, 1500);
-      }).catch(function (e) {
-        m.estado = 'error'; m.error = e.message;
-        if (E.telSel === tel) pintarConv(false); else toast('No se envió el correo: ' + e.message, 'error');
-      });
+      m._reenviar = function () {
+        api('enviarCorreo', tel, asunto, cuerpo).then(function (r) {
+          m.estado = 'enviado'; if (r && r.hora) m.hora = r.hora;
+          if (E.telSel === tel) pintarConv(false);
+          guardarCache(); toast('Correo enviado');
+          setTimeout(sincronizar, 1500);
+        }).catch(function (e) {
+          m.estado = 'error'; m.error = e.message;
+          if (E.telSel === tel) pintarConv(false); else toast('No se envió el correo: ' + e.message, 'error');
+        });
+      };
+      m._reenviar();
     });
   }
   function enviar(tel, txt) {
@@ -1637,6 +1653,7 @@
     function tarjetaPlantilla(t) {
       var v = t.nombre + '|' + t.idioma, sel = v === E.plantillaSel;
       var corto = ejemploTexto(t); if (corto.length > 170) corto = corto.slice(0, 170).replace(/\s+\S*$/, '').replace(/[.,;:*]+$/, '') + '…';
+      if ((corto.match(/\*/g) || []).length % 2) corto = corto.replace(/\*(?=[^*]*$)/, ''); // que no quede un asterisco suelto
       return '<button type="button" class="tarjeta" data-plantilla="' + esc(v) + '" style="text-align:left;cursor:pointer;border:2px solid ' + (sel ? 'var(--verde)' : 'transparent') + '">' +
         '<div class="fila-dato"><b>' + (sel ? '● ' : '○ ') + esc(bonito(t.nombre)) + '</b>' + (t.encabezado === 'IMAGE' ? '<span class="nota">con imagen</span>' : '') + '</div>' +
         '<div class="globo salida" style="max-width:100%;align-self:stretch;margin:0"><span style="white-space:pre-wrap;font-size:14px">' + formato(corto) + '</span></div>' +
@@ -1714,7 +1731,11 @@
           api('mandarLote', E.lote, o).then(function (r) {
             toast('✅ Lote ' + r.lote + ': ' + r.enviados + ' enviados' + (r.fallidos ? ' · ' + r.fallidos + ' no se pudieron' : ''));
             E.previa = null; E.plantillas = null; ir('semaforo');
-          }).catch(function (e) { toast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Mandar a ' + p.cuantos + ' médicos'; });
+          }).catch(function (e) {
+            // Si se cortó la conexión o tardó demasiado, el lote pudo haber salido: se manda a revisar el Semáforo.
+            if (/Sin conexión|Tardó demasiado/.test(e.message)) { toast('Se perdió la conexión mientras se mandaba. El lote pudo haber salido: revisa el Semáforo antes de intentar otra vez.', 'error'); E.previa = null; E.plantillas = null; ir('semaforo'); return; }
+            toast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Mandar a ' + p.cuantos + ' médicos';
+          });
         });
       };
     }
@@ -1757,7 +1778,7 @@
         '<section class="tarjeta horizontal"><div class="semaforo-circulo s-' + col + '">' + (col === 'Verde' ? ICON.palomita : ICON.alto) + '</div><div><span class="rotulo">' + (u ? 'Lote ' + u.lote + ' · ' + u.enviados + ' contactos' : (E.semaforo ? 'Sin lotes todavía' : 'Revisando…')) + '</span><div class="frase">' + (u ? frase : 'Manda tu primer lote') + '</div></div></section>' +
         (u ? '<section class="tarjeta grid2"><div class="dato"><span>Entregados</span><b>' + u.entregados + ' de ' + u.enviados + '</b></div><div class="dato"><span>Dijeron Sí</span><b class="verde">' + u.si + '</b></div><div class="dato"><span>BAJA / bloqueos</span><b class="rojo">' + u.baja + '</b></div><div class="dato"><span>Sin respuesta</span><b>' + Math.max(0, u.entregados - u.si - u.baja) + '</b></div></section>' : '') +
         '<section class="tarjeta"><span class="rotulo">Según Meta</span><div class="fila-dato"><span>Calidad del número</span><b>' + esc(E.semaforo ? calidadNumero(s.calidadMeta) : '…') + '</b></div><div class="fila-dato"><span>Plantilla</span><b>' + esc(E.semaforo ? estadoPlantilla(s.estadoPlantilla) : '…') + '</b></div><div class="fila-dato"><span>Tope diario</span><b>' + (s.tope || 250) + '</b></div></section>' +
-        (s.gasto ? '<section class="tarjeta"><span class="rotulo">Gasto en WhatsApp · ' + esc(s.gasto.mes) + '</span><div class="fila-dato"><span>Lo que llevas este mes</span><b>$' + Number(s.gasto.conIva).toFixed(2) + ' con IVA</b></div><div class="fila-dato"><span>Mensajes cobrados</span><b>' + s.gasto.plantillas + '</b></div><div class="fila-dato"><span>Mensajes gratis</span><b>' + (s.gasto.gratis || 0) + '</b></div><span class="nota">' + (s.gasto.fuente === 'Meta' ? 'Dato de Meta, actualizado ' + esc(horaCorta(s.gasto.hora)) + '. Meta lo cobra a tu tarjeta después, todo junto.' : 'Cálculo aproximado (Meta no contestó). Meta lo cobra a tu tarjeta después.') + '</span></section>' : '') +
+        (s.gasto ? '<section class="tarjeta"><span class="rotulo">Gasto en WhatsApp · ' + esc(s.gasto.mes) + '</span><div class="fila-dato"><span>Lo que llevas este mes</span><b>$' + Number(s.gasto.conIva).toFixed(2) + ' con IVA</b></div><div class="fila-dato"><span>Mensajes cobrados</span><b>' + s.gasto.plantillas + '</b></div><div class="fila-dato"><span>Mensajes gratis</span><b>' + (s.gasto.gratis || 0) + '</b></div><span class="nota">' + (s.gasto.fuente === 'Meta' ? 'Dato de Meta, actualizado ' + esc(String(horaCorta(s.gasto.hora)).replace(/\.$/, '')) + '. Meta lo cobra a tu tarjeta después, todo junto.' : 'Cálculo aproximado (Meta no contestó). Meta lo cobra a tu tarjeta después.') + '</span></section>' : '') +
         (E.marco ? '<section class="tarjeta"><span class="rotulo">Marco · piloto automático</span><div class="fila-dato"><span>Contesta solo a los doctores</span><b class="' + (E.marco.auto ? 'verde' : '') + '">' + (E.marco.auto ? 'Prendido' : 'Apagado') + '</b></div>' + (E.marco.clave ? '' : '<span class="nota">Falta la clave de Gemini (GEMINI_KEY).</span>') + '<span class="nota">Contesta solo dentro de las 24 h gratis. Si piden cita, visita, cotización o apartar, te avisa y deja ese chat para ti.' + (E.marco.pausados ? ' Chats que te ha pasado: ' + E.marco.pausados + '.' : '') + '</span><button type="button" class="boton-sec chico-btn" id="btnMarcoAuto" style="margin-top:8px">' + (E.marco.auto ? 'Apagar a Marco' : 'Prender a Marco') + '</button></section>' : '') +
         '<section class="tarjeta reglas"><span class="rotulo">Reglas (lotes chicos)</span><span><b class="verde">Verde</b> · 0 a 1 BAJA o bloqueo: seguir</span><span><b class="ambar">Amarillo</b> · 2 BAJA: pausar y cambiar mensaje</span><span><b class="rojo">Rojo</b> · 3 o más, o Meta marca la plantilla: parar</span></section>' +
         (s.lotes.length ? '<section class="panel solo-escritorio"><div class="rotulo" style="padding:14px 18px">Historial de lotes</div><div style="overflow-x:auto"><table class="tabla"><thead><tr><th>Lote</th><th>Fecha</th><th>Enviados</th><th>Entregados</th><th>Sí</th><th>BAJA</th><th>Semáforo</th></tr></thead><tbody>' +
